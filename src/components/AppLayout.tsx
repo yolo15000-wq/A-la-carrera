@@ -14,8 +14,9 @@ import MateriaPrimaView from "../views/MateriaPrimaView";
 import ProductosTerminadosView from "../views/ProductosTerminadosView";
 import DashboardView from "../views/DashboardView";
 import CarteraView from "../views/CarteraView";
-import ConfiguracionView from "../views/ConfiguracionView";
 import ReportesView from "../views/ReportesView";
+import MaestrosView from "../views/MaestrosView";
+import { Database } from "lucide-react";
 
 const MENU_ITEMS = [
   { icon: Home,         label: 'Dashboard',             badge: 0 },
@@ -27,6 +28,7 @@ const MENU_ITEMS = [
   { icon: PackageCheck, label: 'Producto Terminado',    badge: 0 },
   { icon: Package,      label: 'Materia Prima',         badge: 0 },
   { icon: BarChart3,    label: 'Reportes',              badge: 0 },
+  { icon: Database,     label: 'Catálogos',             badge: 0 },
 ];
 
 const ADMIN_ITEMS = [
@@ -99,6 +101,7 @@ const MainContent = () => {
       case 'Materia Prima':       return <MateriaPrimaView />;
       case 'Reportes':            return <ReportesView />;
       case 'Configuración':       return <ConfiguracionView />;
+      case 'Catálogos':           return <MaestrosView />;
       default:                    return <DashboardView />;
     }
   };
