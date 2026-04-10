@@ -12,7 +12,6 @@ interface Profile {
 }
 
 export default function MaestrosView() {
-export default function MaestrosView() {
   const { user } = useAuth();
   const { products, recipes, addRecipe, addProduct } = useCatalogos();
   const [activeTab, setActiveTab] = useState<'recetas' | 'productos' | 'personal'>('recetas');
@@ -266,62 +265,7 @@ export default function MaestrosView() {
         </div>
       )}
 
-      {/* MODAL RECETA */}
-      {showRecipeModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-xl border border-gray-200 dark:border-gray-700 overflow-hidden transform animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
-               <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">Nueva Receta de Producción</h2>
-               <button onClick={() => setShowRecipeModal(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"><X className="h-5 w-5" /></button>
-            </div>
-            
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-               <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Nombre del Producto Final</label>
-                  <input type="text" value={newRecipe.nombre} onChange={e => setNewRecipe(p => ({...p, nombre: e.target.value}))} 
-                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-5 py-4 text-sm font-bold outline-none uppercase tracking-tight" placeholder="Ejem: CHORIZO SUPER ESPECIAL" />
-                  <p className="text-[9px] text-blue-600 font-bold mt-2 uppercase tracking-wide italic">* Al guardar, se creará también como producto de venta</p>
-               </div>
 
-               <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                  <div className="flex gap-3">
-                     <div className="flex-1">
-                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">Insumo / Ingrediente</label>
-                        <input type="text" value={newRecipe.ingrediente} onChange={e => setNewRecipe(p => ({...p, ingrediente: e.target.value}))}
-                          className="w-full bg-gray-50 dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm outline-none font-bold uppercase" placeholder="Carne, Sal, etc." />
-                     </div>
-                     <div className="w-24 text-center">
-                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">Cant.</label>
-                        <input type="text" value={newRecipe.cantidad} onChange={e => setNewRecipe(p => ({...p, cantidad: e.target.value}))}
-                          className="w-full bg-gray-50 dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm outline-none font-bold text-center" placeholder="Gr/Ml" />
-                     </div>
-                     <button onClick={addIngredient} className="mt-5 p-3 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-xl hover:bg-blue-600 hover:text-white transition-all">
-                        <Plus className="h-5 w-5" />
-                     </button>
-                  </div>
-
-                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 min-h-[100px] space-y-2">
-                     {newRecipe.ingredientes.length === 0 ? (
-                       <p className="text-gray-400 text-xs text-center pt-8 uppercase font-bold tracking-widest italic opacity-50">No hay ingredientes añadidos</p>
-                     ) : (
-                       newRecipe.ingredientes.map((ing, i) => (
-                         <div key={i} className="flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
-                            <span className="text-xs font-black uppercase text-gray-700 dark:text-gray-200">{ing.nombre}</span>
-                            <span className="text-xs font-bold text-blue-600">{ing.cant}</span>
-                         </div>
-                       ))
-                     )}
-                  </div>
-               </div>
-            </div>
-
-            <div className="p-6 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
-               <button onClick={() => setShowRecipeModal(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-500 uppercase text-xs">Cancelar</button>
-               <button onClick={handleAddRecipe} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-500/30 transition-all">Guardar Receta Maestra</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL USUARIO */}
       {showUserModal && (
@@ -362,22 +306,7 @@ export default function MaestrosView() {
         </div>
       )}
 
-      {/* MODAL PRODUCTO (Simulado) */}
-      {showProdModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700">
-            <div className="p-6 space-y-4">
-               <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">Nuevo Producto</h2>
-               <input type="text" value={newProd} onChange={e => setNewProd(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-4 py-3 text-sm outline-none" placeholder="Nombre del producto..." />
-               <div className="flex gap-2">
-                 <button onClick={() => setShowProdModal(false)} className="flex-1 py-3 font-bold text-gray-500 uppercase text-xs">Atrás</button>
-                 <button onClick={handleAddProduct} className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-black uppercase text-xs">Agregar</button>
-               </div>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
