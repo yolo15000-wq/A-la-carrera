@@ -4,6 +4,8 @@ import { PRODUCCIONES_INICIALES, RECETAS, OPERARIOS } from "../data/datos";
 import type { LoteBD } from "../data/datos";
 import { InventarioContext } from "../context/InventarioContext";
 import { googleSheetsService } from "../services/googleSheetsService";
+import { useAuth } from "../context/AuthContext";
+import { useCatalogos } from "../context/CatalogosContext";
 
 // Unidades producidas por tanda según receta
 const UNIDADES_POR_TANDA: Record<string, number> = {

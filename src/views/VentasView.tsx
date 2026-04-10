@@ -153,11 +153,10 @@ export default function VentasView() {
       } : {}),
     };
 
-    // 1. Devolver productos al inventario central si hay devoluciones
     if (nueva.cantidad_devolucion > 0) {
-      const productId = getProductoIdVentas(nueva.producto);
-      if (productId) {
-        agregarProductoTerminado(productId, nueva.cantidad_devolucion);
+      const selectedProd = products.find(p => p.nombre === nueva.producto);
+      if (selectedProd) {
+        agregarProductoTerminado(selectedProd.nombre, nueva.cantidad_devolucion);
       }
     }
 
