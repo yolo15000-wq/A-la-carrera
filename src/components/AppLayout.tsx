@@ -37,9 +37,10 @@ const ADMIN_ITEMS = [
 ];
 
 import { InventarioProvider } from "../context/InventarioContext";
-
 import { CatalogosProvider } from "../context/CatalogosContext";
-
+import { AuthProvider, useAuth } from "../context/AuthContext";
+import LoginView from "../views/LoginView";
+import ConfiguracionView from "../views/ConfiguracionView";
 export const App = () => {
   return (
     <AuthProvider>
