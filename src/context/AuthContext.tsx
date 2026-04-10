@@ -6,7 +6,7 @@ export type Role = 'admin' | 'vendedor' | 'operario';
 
 interface User {
   id: string;
-  name: string;
+  username: string;
   role: Role;
 }
 
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const loggedUser: User = {
         id: data.id,
-        name: data.nombre,
+        username: data.username || 'Usuario',
         role: data.role as Role
       };
 
