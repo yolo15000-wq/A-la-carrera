@@ -182,9 +182,53 @@ export default function ProduccionView() {
             <h3 className="font-semibold text-gray-900 dark:text-gray-100">Historial de Lotes</h3>
             {loading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
           </div>
-          <span className="text-xs text-gray-400 uppercase font-medium">{lotes.length} registros</span>
+          <span className="text-xs text-gray-400 uppercase font-bold tracking-widest">{lotes.length} reg.</span>
         </div>
-        <div className="overflow-x-auto">
+
+        {/* VISTA MÓVIL (TARJETAS) */}
+        <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+          {lotes.slice(0, 15).map(l => (
+            <div key={l.id_lote} className="p-4 space-y-3 hover:bg-gray-50/50">
+              <div className="flex justify-between items-start">
+                <span className="font-mono text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded uppercase tracking-tighter">
+                  {l.id_lote}
+                </span>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                  l.estado === 'Terminado'
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30'
+                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30'
+                }`}>
+                  {l.estado}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-end">
+                <div>
+                  <h4 className="font-black text-gray-900 dark:text-white uppercase leading-tight italic text-lg tracking-tight">
+                    {l.producto}
+                  </h4>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">
+                    {l.fecha} · {l.operario}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center gap-1 text-gray-400 text-[10px] font-bold justify-end mb-1 uppercase">
+                    <Clock className="h-3 w-3" /> {l.horas_formateadas}
+                  </div>
+                  <div className="text-xl font-black text-gray-700 dark:text-gray-300 italic tracking-tighter">
+                    {l.tandas} <span className="text-[10px] not-italic text-gray-400 uppercase">Tandas</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {lotes.length === 0 && !loading && (
+             <div className="p-8 text-center text-gray-400 text-sm">No hay lotes registrados todavía.</div>
+          )}
+        </div>
+
+        {/* VISTA DESKTOP (TABLA) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50/50 dark:bg-gray-800/40">
               <tr>
@@ -207,8 +251,8 @@ export default function ProduccionView() {
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                       l.estado === 'Terminado'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800'
-                        : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30'
+                        : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30'
                     }`}>
                       {l.estado === 'Terminado' ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3 animate-pulse" />}
                       {l.estado}
