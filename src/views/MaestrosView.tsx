@@ -56,8 +56,9 @@ export default function MaestrosView() {
       fetchProfiles();
       setShowUserModal(false);
       setNewUser({ username: '', pin: '', role: 'vendedor' });
-    } catch (err) {
-      alert("Error al guardar usuario. Revisa la conexión.");
+    } catch (err: any) {
+      console.error("DEBUG ERROR:", err);
+      alert("ERROR DETALLADO: " + (err.message || JSON.stringify(err)));
     }
   };
 
@@ -67,8 +68,8 @@ export default function MaestrosView() {
         const { error } = await supabase.from('profiles').delete().eq('id', id);
         if (error) throw error;
         fetchProfiles();
-      } catch (err) {
-        alert("No se pudo eliminar el usuario.");
+      } catch (err: any) {
+        alert("ERROR AL ELIMINAR: " + (err.message || JSON.stringify(err)));
       }
     }
   };
