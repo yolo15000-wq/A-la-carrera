@@ -260,45 +260,88 @@ export default function VentasView() {
 
       {/* ── PESTAÑA 1: Salidas ── */}
       {activeTab === 'salidas' && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Productos enviados a ruta (pendientes de liquidar)</h3>
+        <div className="space-y-4 md:space-y-0">
+          {/* VISTA MÓVIL (TARJETAS) */}
+          <div className="md:hidden space-y-4">
+            {salidas.map(s => (
+              <div key={s.id} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{s.fecha} · {s.ruta}</p>
+                    <h4 className="font-bold text-gray-900 dark:text-gray-100 text-lg uppercase">{s.producto}</h4>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                    s.estado === 'En Ruta'
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900/30'
+                  }`}>
+                    {s.estado}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between mb-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl">
+                  <div>
+                    <p className="text-[10px] text-gray-400">Vendedor</p>
+                    <p className="font-bold text-gray-800 dark:text-gray-200 uppercase">{s.vendedor}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400">Cantidad</p>
+                    <p className="text-2xl font-black text-blue-600 italic leading-none">{s.cantidad_salida}</p>
+                  </div>
+                </div>
+
+                {s.estado === 'En Ruta' ? (
+                  <button onClick={() => abrirLiquidacion(s)}
+                    className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl text-sm font-bold shadow-lg shadow-green-600/20 active:scale-95 transition-all">
+                    <PackageCheck className="h-5 w-5" /> LIQUIDAR RUTA
+                  </button>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 text-gray-400 py-2 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
+                    <CheckCircle2 className="h-4 w-4" /> Finalizado
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-          <div className="overflow-x-auto">
+
+          {/* VISTA DESKTOP (TABLA) */}
+          <div className="hidden md:block bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 italic text-gray-400 text-xs">
+              Muestra las productos enviados a ruta hoy
+            </div>
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800/60">
+              <thead className="bg-gray-50 dark:bg-gray-800/60 font-bold">
                 <tr>
                   {['Fecha','Vendedor','Ruta','Producto','Cant. Salida','Estado','Acción'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {salidas.map(s => (
-                  <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{s.fecha}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-200">{s.vendedor}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{s.ruta}</td>
-                    <td className="px-4 py-3 text-gray-800 dark:text-gray-200">{s.producto}</td>
-                    <td className="px-4 py-3 text-center font-bold text-gray-700 dark:text-gray-300">{s.cantidad_salida}</td>
+                  <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                    <td className="px-4 py-3 text-gray-500 text-xs">{s.fecha}</td>
+                    <td className="px-4 py-3 font-bold text-gray-800 dark:text-gray-200 uppercase">{s.vendedor}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{s.ruta}</td>
+                    <td className="px-4 py-3 text-gray-800 dark:text-gray-200 font-medium">{s.producto}</td>
+                    <td className="px-4 py-3 text-center font-black text-blue-600 italic text-lg">{s.cantidad_salida}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         s.estado === 'En Ruta'
-                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900/30'
                       }`}>
-                        {s.estado === 'En Ruta' ? <Clock3 className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
                         {s.estado}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       {s.estado === 'En Ruta' ? (
                         <button onClick={() => abrirLiquidacion(s)}
-                          className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-medium transition-colors">
-                          <PackageCheck className="h-3 w-3" /> Liquidar
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-transform active:scale-95 shadow-md">
+                          Liquidar
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-gray-300">OK</span>
                       )}
                     </td>
                   </tr>
@@ -311,82 +354,124 @@ export default function VentasView() {
 
       {/* ── PESTAÑA 2: Liquidaciones ── */}
       {activeTab === 'liquidacion' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Sección Contado */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/10">
-              <h3 className="font-semibold text-green-800 dark:text-green-300 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/10 flex justify-between items-center">
+              <h3 className="font-bold text-green-800 dark:text-green-300 flex items-center gap-2 uppercase text-xs tracking-widest">
                 <DollarSign className="h-4 w-4" /> Ventas de Contado
               </h3>
+              <span className="bg-green-600 text-white text-[10px] px-2 py-0.5 rounded-full">{liquidaciones.filter(l => l.tipo_pago === 'Contado').length}</span>
             </div>
-            <div className="overflow-x-auto">
+
+            {/* MÓVIL (TARJETAS) */}
+            <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+              {liquidaciones.filter(l => l.tipo_pago === 'Contado').map(l => (
+                <div key={l.id} className="p-4 space-y-2 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">{l.fecha} · {l.ruta}</span>
+                    <span className="font-bold text-gray-800 dark:text-gray-200">{l.vendedor}</span>
+                  </div>
+                  <h4 className="font-bold text-gray-900 dark:text-white uppercase leading-tight">{l.producto}</h4>
+                  <div className="flex gap-4">
+                    <div><p className="text-[10px] text-gray-400">Vendido</p><p className="font-black text-green-600 italic text-lg">{l.cantidad_venta}</p></div>
+                    <div><p className="text-[10px] text-gray-400">Devuelto</p><p className="font-black text-blue-600 italic text-lg">{l.cantidad_devolucion}</p></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* DESKTOP (TABLA) */}
+            <div className="hidden md:block overflow-x-auto text-[13px]">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60">
                   <tr>
                     {['Fecha','Vendedor','Ruta','Producto','Salida','Vendido','Devuelto'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {liquidaciones.filter(l => l.tipo_pago === 'Contado').map(l => (
-                    <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{l.fecha}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-200">{l.vendedor}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{l.ruta}</td>
+                    <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-4 py-3 text-gray-500 text-xs">{l.fecha}</td>
+                      <td className="px-4 py-3 font-bold text-gray-800 dark:text-gray-200 uppercase">{l.vendedor}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{l.ruta}</td>
                       <td className="px-4 py-3 text-gray-800 dark:text-gray-200">{l.producto}</td>
                       <td className="px-4 py-3 text-center font-semibold">{l.cantidad_salida}</td>
-                      <td className="px-4 py-3 text-center font-bold text-green-600">{l.cantidad_venta}</td>
-                      <td className="px-4 py-3 text-center font-bold text-blue-600">{l.cantidad_devolucion}</td>
+                      <td className="px-4 py-3 text-center font-black text-green-600 italic text-lg">{l.cantidad_venta}</td>
+                      <td className="px-4 py-3 text-center font-black text-blue-600 italic text-lg">{l.cantidad_devolucion}</td>
                     </tr>
                   ))}
-                  {liquidaciones.filter(l => l.tipo_pago === 'Contado').length === 0 && (
-                    <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400 text-sm">Sin registros de contado</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
           </div>
 
           {/* Sección Crédito */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-orange-50 dark:bg-orange-900/10">
-              <h3 className="font-semibold text-orange-800 dark:text-orange-300 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-orange-50 dark:bg-orange-900/10 flex justify-between items-center">
+              <h3 className="font-bold text-orange-800 dark:text-orange-300 flex items-center gap-2 uppercase text-xs tracking-widest">
                 <CreditCard className="h-4 w-4" /> Ventas a Crédito
               </h3>
+              <span className="bg-orange-600 text-white text-[10px] px-2 py-0.5 rounded-full">{liquidaciones.filter(l => l.tipo_pago === 'Crédito').length}</span>
             </div>
-            <div className="overflow-x-auto">
+
+            {/* MÓVIL (TARJETAS) */}
+            <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+              {liquidaciones.filter(l => l.tipo_pago === 'Crédito').map(l => (
+                <div key={l.id} className="p-4 space-y-3 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">{l.fecha} · {l.vendedor}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/30 underline decoration-orange-400">
+                      Vence: {l.fecha_cobro ?? 'S.D'}
+                    </span>
+                  </div>
+                  <h4 className="font-black text-gray-900 dark:text-white uppercase leading-tight italic">{l.producto}</h4>
+                  
+                  <div className="bg-orange-50/50 dark:bg-orange-900/10 p-3 rounded-xl border border-orange-100 dark:border-orange-900/30">
+                    <p className="text-[10px] text-orange-600 font-bold uppercase">Cliente</p>
+                    <p className="font-bold text-gray-900 dark:text-white uppercase">{l.cliente ?? 'Sin Nombre'}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{l.direccion ?? 'Sin dirección'}</p>
+                  </div>
+
+                  <div className="flex gap-6">
+                    <div><p className="text-[10px] text-gray-400 uppercase font-bold">Crédito</p><p className="font-black text-green-600 italic text-xl leading-none">{l.cantidad_venta}</p></div>
+                    <div><p className="text-[10px] text-gray-400 uppercase font-bold">Devuelto</p><p className="font-black text-blue-600 italic text-xl leading-none">{l.cantidad_devolucion}</p></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* DESKTOP (TABLA) */}
+            <div className="hidden md:block overflow-x-auto text-[13px]">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800/60">
+                <thead className="bg-gray-50 dark:bg-gray-800/60 font-bold">
                   <tr>
-                    {['Fecha','Vendedor','Producto','Vendido','Devuelto','Cliente','Teléfono','Dirección','F. Cobro'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    {['Fecha','Vendedor','Producto','Vendido','Devuelto','Cliente','F. Cobro'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {liquidaciones.filter(l => l.tipo_pago === 'Crédito').map(l => (
-                    <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{l.fecha}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-200">{l.vendedor}</td>
+                    <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-4 py-3 text-gray-500 text-xs">{l.fecha}</td>
+                      <td className="px-4 py-3 font-bold text-gray-800 dark:text-gray-200 uppercase">{l.vendedor}</td>
                       <td className="px-4 py-3 text-gray-800 dark:text-gray-200">{l.producto}</td>
-                      <td className="px-4 py-3 text-center font-bold text-green-600">{l.cantidad_venta}</td>
-                      <td className="px-4 py-3 text-center font-bold text-blue-600">{l.cantidad_devolucion}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-200">{l.cliente ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{l.telefono ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{l.direccion ?? '—'}</td>
+                      <td className="px-4 py-3 text-center font-black text-green-600 italic text-lg">{l.cantidad_venta}</td>
+                      <td className="px-4 py-3 text-center font-black text-blue-600 italic text-lg">{l.cantidad_devolucion}</td>
                       <td className="px-4 py-3">
-                        {l.fecha_cobro ? (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                            {l.fecha_cobro}
-                          </span>
-                        ) : '—'}
+                        <p className="font-bold p-0 m-0 uppercase">{l.cliente ?? '—'}</p>
+                        <p className="text-[10px] p-0 m-0 text-gray-400">{l.telefono}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/30">
+                          {l.fecha_cobro}
+                        </span>
                       </td>
                     </tr>
                   ))}
-                  {liquidaciones.filter(l => l.tipo_pago === 'Crédito').length === 0 && (
-                    <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400 text-sm">Sin registros a crédito</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
