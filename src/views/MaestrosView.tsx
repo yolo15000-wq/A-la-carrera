@@ -3,6 +3,8 @@ import {
   Book, Package, Users, Plus, Save, Trash2, ChevronRight, Database, Search, Truck, X, ShieldCheck
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../context/AuthContext";
+import { useCatalogos } from "../context/CatalogosContext";
 
 interface Profile {
   id: string;
