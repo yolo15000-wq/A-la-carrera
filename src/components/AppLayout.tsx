@@ -38,17 +38,18 @@ const ADMIN_ITEMS = [
 
 import { InventarioProvider } from "../context/InventarioContext";
 
-import { AuthProvider, useAuth } from "../context/AuthContext";
-import LoginView from "../views/LoginView";
+import { CatalogosProvider } from "../context/CatalogosContext";
 
 export const App = () => {
   return (
     <AuthProvider>
-      <InventarioProvider>
-        <ClientesProvider>
-          <MainContent />
-        </ClientesProvider>
-      </InventarioProvider>
+      <CatalogosProvider>
+        <InventarioProvider>
+          <ClientesProvider>
+            <MainContent />
+          </ClientesProvider>
+        </InventarioProvider>
+      </CatalogosProvider>
     </AuthProvider>
   );
 };

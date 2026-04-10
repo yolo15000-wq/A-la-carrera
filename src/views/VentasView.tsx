@@ -55,7 +55,14 @@ const LIQUIDACIONES_INICIALES: LiquidacionRuta[] = [
 ];
 
 // ─── Componente ─────────────────────────────────────────────────────────────
+import { useAuth } from "../context/AuthContext";
+import { useCatalogos } from "../context/CatalogosContext";
+
+// ... (Tipos y Datos iniciales igual)
+
 export default function VentasView() {
+  const { user } = useAuth();
+  const { products } = useCatalogos();
   const { descontarProductoTerminado, agregarProductoTerminado, registrarCredito } = useContext(InventarioContext);
   const { clientes } = useClientes();
   const [activeTab, setActiveTab] = useState<'salidas' | 'liquidacion'>('salidas');
@@ -69,9 +76,9 @@ export default function VentasView() {
   const [showLiqModal, setShowLiqModal] = useState(false);
   const [salidaSeleccionada, setSalidaSeleccionada] = useState<SalidaRuta | null>(null);
 
-  // Formulario salida
+  // Formulario salida (Sin vendedor, es automático)
   const [formSalida, setFormSalida] = useState({
-    vendedor: '', ruta: '', producto: '', cantidad_salida: 0,
+    ruta: '', producto: '', cantidad_salida: 0,
   });
 
   // Formulario liquidación
@@ -83,50 +90,33 @@ export default function VentasView() {
 
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
-  // Mapeo ultra-robusto para Ventas
-  const getProductoIdVentas = (nombre: string): string => {
-    const clean = nombre.toLowerCase().trim();
-    if (clean.includes('s') || clean.includes('12')) return 'chorizo-s';
-    if (clean.includes('m x5') || clean.includes('x5') || (clean.includes('m') && !clean.includes('10'))) return 'chorizo-m';
-    if (clean.includes('m x10') || clean.includes('x10') || clean.includes('l')) return 'chorizo-l';
-    if (clean.includes('rollo')) return 'rollo';
-    if (clean.includes('chicharron') || clean.includes('chicharrón')) return 'chicharron';
-    if (clean.includes('costilla')) return 'costilla';
-    if (clean.includes('18')) return 'chorizo-18';
-    return '';
-  };
-
   // ---- Registrar salida ----
   const registrarSalida = async () => {
-    if (!formSalida.vendedor || !formSalida.producto || formSalida.cantidad_salida <= 0) return;
+    if (!user || !formSalida.producto || formSalida.cantidad_salida <= 0) return;
     
     const nuevaSalida: SalidaRuta = {
       id: Date.now(),
       fecha: new Date().toLocaleDateString('es-CO'),
-      vendedor: formSalida.vendedor,
+      vendedor: user.username, // AUTOMÁTICO
       ruta: formSalida.ruta,
       producto: formSalida.producto,
       cantidad_salida: formSalida.cantidad_salida,
       estado: 'En Ruta',
     };
 
-    // 1. Descontar del inventario central (INSTANTÁNEO)
-    const productId = getProductoIdVentas(formSalida.producto);
-    if (productId) {
-      descontarProductoTerminado(productId, formSalida.cantidad_salida);
-      setMensajeExito(`¡Inventario Actualizado! Se descontaron ${formSalida.cantidad_salida} und de ${formSalida.producto} para la ruta.`);
+    const selectedProd = products.find(p => p.nombre === formSalida.producto);
+    if (selectedProd) {
+      descontarProductoTerminado(selectedProd.nombre, formSalida.cantidad_salida);
+      setMensajeExito(`Inventario: -${formSalida.cantidad_salida} ${formSalida.producto}`);
       setTimeout(() => setMensajeExito(null), 5000);
-    } else {
-      console.warn("No se pudo mapear el producto para descontar stock:", formSalida.producto);
     }
 
-    // 2. Sincronizar en segundo plano
     googleSheetsService.appendRow('Ventas', nuevaSalida)
-      .catch(err => console.error("Error sincronización Ventas:", err));
+      .catch(err => console.error(err));
 
     setSalidas(prev => [nuevaSalida, ...prev]);
     setShowSalidaModal(false);
-    setFormSalida({ vendedor: '', ruta: '', producto: '', cantidad_salida: 0 });
+    setFormSalida({ ruta: '', producto: '', cantidad_salida: 0 });
   };
 
   // ---- Abrir liquidación de una salida ----
@@ -481,57 +471,51 @@ export default function VentasView() {
 
       {/* ── MODAL: Registrar Salida ── */}
       {showSalidaModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-gray-700">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Registrar Salida a Ruta</h2>
-              <button onClick={() => setShowSalidaModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-gray-700 overflow-hidden transform animate-in zoom-in-95 duration-200">
+            <div className="px-8 py-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-blue-50 dark:bg-blue-900/20">
+              <h2 className="text-sm font-black text-blue-900 dark:text-blue-100 uppercase tracking-widest italic">Nueva Salida a Ruta</h2>
+              <button onClick={() => setShowSalidaModal(false)} className="text-blue-400 hover:text-blue-900 text-xl font-bold">×</button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendedor</label>
-                  <select value={formSalida.vendedor} onChange={e => setFormSalida(p => ({ ...p, vendedor: e.target.value }))}
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="">-- Vendedor --</option>
-                    {VENDEDORES.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruta</label>
-                  <select value={formSalida.ruta} onChange={e => setFormSalida(p => ({ ...p, ruta: e.target.value }))}
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="">-- Ruta --</option>
-                    {RUTAS.map(r => <option key={r}>{r}</option>)}
-                  </select>
-                </div>
+            <div className="p-8 space-y-6">
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl">
+                 <div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Vendedor Responsable</p>
+                    <p className="text-lg font-black text-gray-900 dark:text-white uppercase italic">{user?.username}</p>
+                 </div>
+                 <Truck className="text-blue-600 h-8 w-8 opacity-20" />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Producto</label>
-                <select value={formSalida.producto} onChange={e => setFormSalida(p => ({ ...p, producto: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
-                  <option value="">-- Producto --</option>
-                  {PRODUCTOS_VENTA.map(p => <option key={p}>{p} (stock: {STOCK_CENTRAL_INICIAL[p] ?? 0})</option>)}
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Zona / Ruta</label>
+                <select value={formSalida.ruta} onChange={e => setFormSalida(p => ({ ...p, ruta: e.target.value }))}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-5 py-4 text-sm font-bold outline-none uppercase tracking-tight">
+                  <option value="">-- Seleccionar Ruta --</option>
+                  {RUTAS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad que sale</label>
-                <input type="number" min={1} value={formSalida.cantidad_salida}
-                  onChange={e => setFormSalida(p => ({ ...p, cantidad_salida: parseInt(e.target.value) || 0 }))}
-                  className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none" />
-              </div>
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300">
-                Esta salida quedará en estado <strong>"En Ruta"</strong>. Al final del día se registrarán los productos vendidos, devueltos y el tipo de pago.
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-1">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Producto</label>
+                  <select value={formSalida.producto} onChange={e => setFormSalida(p => ({ ...p, producto: e.target.value }))}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-5 py-4 text-sm font-bold outline-none uppercase tracking-tight">
+                    <option value="">-- Elegir --</option>
+                    {products.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Unidades</label>
+                  <input type="number" min={1} value={formSalida.cantidad_salida}
+                    onChange={e => setFormSalida(p => ({ ...p, cantidad_salida: parseInt(e.target.value) || 0 }))}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-5 py-4 text-sm font-bold outline-none" />
+                </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex gap-3 justify-end">
-              <button onClick={() => setShowSalidaModal(false)}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                Cancelar
-              </button>
-              <button onClick={registrarSalida} disabled={!formSalida.vendedor || !formSalida.producto || formSalida.cantidad_salida <= 0}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                <Truck className="h-4 w-4" /> Enviar a Ruta
+            <div className="px-8 pb-8 pt-2">
+              <button onClick={registrarSalida} disabled={!formSalida.ruta || !formSalida.producto || formSalida.cantidad_salida <= 0}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 text-white py-5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-3">
+                <Truck className="h-5 w-5" /> Enviar a Ruta Ahora
               </button>
             </div>
           </div>

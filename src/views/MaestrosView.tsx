@@ -12,26 +12,22 @@ interface Profile {
 }
 
 export default function MaestrosView() {
+export default function MaestrosView() {
+  const { user } = useAuth();
+  const { products, recipes, addRecipe, addProduct } = useCatalogos();
   const [activeTab, setActiveTab] = useState<'recetas' | 'productos' | 'personal'>('recetas');
   const [searchTerm, setSearchTerm] = useState("");
-  
-  // Estados para datos
+
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [products, setProducts] = useState<string[]>(['Chorizo S', 'Rollos', 'Chorizos M x5', 'Chorizo M x10']);
-  const [recipes, setRecipes] = useState<any[]>([
-    { id: '1', nombre: 'CHORIZO S', ingredientes: ['Carne Cerdo', 'Tocino', 'Cebolla'] }
-  ]);
   const [loading, setLoading] = useState(false);
 
-  // Estados para modales
   const [showUserModal, setShowUserModal] = useState(false);
   const [showProdModal, setShowProdModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
-  const [newUser, setNewUser] = useState({ username: '', pin: '', role: 'vendedor' as const });
-  const [newProd, setNewProd] = useState("");
   
-  // Estado para Nueva Receta
-  const [newRecipe, setNewRecipe] = useState({ nombre: '', ingrediente: '', cantidad: '', ingredientes: [] as any[] });
+  const [newUser, setNewUser] = useState({ username: '', pin: '', role: 'vendedor' as const });
+  const [newProd, setNewProd] = useState({ nombre: '', precio: '' });
+  const [newRecipe, setNewRecipe] = useState({ nombre: '', precio: '', ingrediente: '', cantidad: '', ingredientes: [] as any[] });
 
   useEffect(() => {
     fetchProfiles();
@@ -42,9 +38,9 @@ export default function MaestrosView() {
       setLoading(true);
       const { data, error } = await supabase.from('profiles').select('*');
       if (error) throw error;
-      if (data) setProfiles(data);
+      setProfiles(data || []);
     } catch (err) {
-      console.error("Error fetching profiles:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -58,44 +54,37 @@ export default function MaestrosView() {
         pin: newUser.pin, 
         role: newUser.role 
       }]);
-      
       if (error) throw error;
       fetchProfiles();
       setShowUserModal(false);
       setNewUser({ username: '', pin: '', role: 'vendedor' });
     } catch (err: any) {
-      console.error("DEBUG ERROR:", err);
-      alert("ERROR DETALLADO: " + (err.message || JSON.stringify(err)));
+      alert("Error: " + err.message);
     }
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (confirm("¿Estás seguro de eliminar este usuario?")) {
-      try {
-        const { error } = await supabase.from('profiles').delete().eq('id', id);
-        if (error) throw error;
-        fetchProfiles();
-      } catch (err: any) {
-        alert("ERROR AL ELIMINAR: " + (err.message || JSON.stringify(err)));
-      }
+    if (!confirm("¿Eliminar usuario?")) return;
+    try {
+      await supabase.from('profiles').delete().eq('id', id);
+      fetchProfiles();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
-  const handleAddProduct = (name: string) => {
-    if (!name) return;
-    setProducts(prev => [...new Set([...prev, name])]);
+  const handleCreateProduct = () => {
+    if (!newProd.nombre || !newProd.precio) return;
+    addProduct(newProd.nombre, parseFloat(newProd.precio));
     setShowProdModal(false);
-    setNewProd("");
+    setNewProd({ nombre: '', precio: '' });
   };
 
-  const handleAddRecipe = () => {
-    if (!newRecipe.nombre || newRecipe.ingredientes.length === 0) return;
-    const r = { id: Date.now().toString(), nombre: newRecipe.nombre.toUpperCase(), ingredientes: newRecipe.ingredientes.map(i => i.nombre) };
-    setRecipes(prev => [...prev, r]);
-    // REGLA: Registrar tambien como producto
-    handleAddProduct(newRecipe.nombre.toUpperCase());
+  const handleCreateRecipe = () => {
+    if (!newRecipe.nombre || !newRecipe.precio || newRecipe.ingredientes.length === 0) return;
+    addRecipe(newRecipe.nombre, newRecipe.ingredientes.map(i => i.nombre), parseFloat(newRecipe.precio));
     setShowRecipeModal(false);
-    setNewRecipe({ nombre: '', ingrediente: '', cantidad: '', ingredientes: [] });
+    setNewRecipe({ nombre: '', precio: '', ingrediente: '', cantidad: '', ingredientes: [] });
   };
 
   const addIngredient = () => {
@@ -120,18 +109,13 @@ export default function MaestrosView() {
         </div>
         
         <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit">
-          <button onClick={() => setActiveTab('recetas')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'recetas' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>
-            <Book className="h-4 w-4" /> Recetas
-          </button>
-          <button onClick={() => setActiveTab('productos')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'productos' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>
-            <Package className="h-4 w-4" /> Productos
-          </button>
-          <button onClick={() => setActiveTab('personal')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'personal' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>
-            <Users className="h-4 w-4" /> Personal
-          </button>
+          {['recetas', 'productos', 'personal'].map((tab: any) => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>
+              {tab === 'recetas' ? <Book className="h-4 w-4" /> : tab === 'productos' ? <Package className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+              {tab}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -139,7 +123,7 @@ export default function MaestrosView() {
         <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input type="text" placeholder="Buscar en el catálogo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+            <input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-xs outline-none uppercase font-bold" />
           </div>
           <button 
@@ -149,63 +133,49 @@ export default function MaestrosView() {
               if (activeTab === 'recetas') setShowRecipeModal(true);
             }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
-            <Plus className="h-4 w-4" /> Nueva {activeTab === 'recetas' ? 'Receta' : activeTab === 'personal' ? 'Usuario' : 'Producto'}
+            <Plus className="h-4 w-4" /> Nueva {activeTab}
           </button>
         </div>
 
         <div className="min-h-[400px]">
           {activeTab === 'personal' && (
-            <div className="p-6">
-              {loading ? (
-                 <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {profiles.map(p => (
-                    <div key={p.id} className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-between group">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="size-12 bg-white dark:bg-gray-700 rounded-xl flex items-center justify-center text-xl font-black text-blue-600 shadow-sm border border-gray-100 dark:border-gray-800">
-                          {p.username?.substring(0, 1).toUpperCase() || "?"}
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                          p.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                          p.role === 'vendedor' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {p.role || 'usuario'}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        <h4 className="font-black text-[12px] text-gray-900 dark:text-white uppercase italic leading-none">{p.username || "Sin Nombre"}</h4>
-                        <div className="flex items-center gap-1 text-[9px] text-gray-500 font-bold uppercase tracking-widest">
-                          <ShieldCheck className="h-3 w-3" /> PIN: {p.pin}
-                        </div>
-                      </div>
-                      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                        <button onClick={() => handleDeleteUser(p.id)} className="p-2 text-gray-400 hover:text-rose-600 transition-colors">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {profiles.map(p => (
+                <div key={p.id} className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-between group">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="size-10 bg-white dark:bg-gray-700 rounded-xl flex items-center justify-center text-lg font-black text-blue-600 shadow-sm">
+                      {p.username?.substring(0, 1).toUpperCase()}
                     </div>
-                  ))}
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-blue-100 text-blue-700">
+                      {p.role}
+                    </span>
+                  </div>
+                  <h4 className="font-black text-xs text-gray-900 dark:text-white uppercase italic">{p.username}</h4>
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                    <button onClick={() => handleDeleteUser(p.id)} className="p-2 text-gray-400 hover:text-rose-600 transition-colors">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           )}
 
           {activeTab === 'productos' && (
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-               {products.map(prod => (
-                 <div key={prod} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center justify-between shadow-sm hover:border-blue-500 transition-all group">
-                   <div className="flex items-center gap-3">
-                     <div className="size-8 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center text-blue-600 font-black">
-                       <Package className="h-4 w-4" />
-                     </div>
-                     <span className="font-bold text-gray-800 dark:text-gray-200 uppercase text-[11px] italic tracking-tight">{prod}</span>
-                   </div>
-                   <button onClick={() => {}} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-rose-600 transition-all">
-                     <Trash2 className="h-4 w-4" />
-                   </button>
-                 </div>
-               ))}
+              {products.map(prod => (
+                <div key={prod.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center justify-between shadow-sm group">
+                  <div className="space-y-1">
+                    <span className="font-bold text-gray-800 dark:text-gray-200 uppercase text-[10px] italic block">{prod.nombre}</span>
+                    <span className="text-[14px] font-black text-blue-600 tracking-tighter italic">
+                      ${prod.precio.toLocaleString()}
+                    </span>
+                  </div>
+                  <button className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-rose-600 transition-all">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
@@ -214,23 +184,87 @@ export default function MaestrosView() {
                {recipes.map(recipe => (
                  <div key={recipe.id} className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between group hover:border-blue-500 transition-all">
                     <div className="flex items-center gap-4">
-                      <div className="size-14 bg-white dark:bg-gray-700 rounded-2xl flex items-center justify-center font-black text-blue-600 italic text-xl shadow-sm border border-gray-100 dark:border-gray-800">
+                      <div className="size-12 bg-white dark:bg-gray-700 rounded-2xl flex items-center justify-center font-black text-blue-600 italic text-lg shadow-sm">
                         {recipe.nombre.substring(0, 2)}
                       </div>
                       <div className="space-y-1">
-                        <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter text-lg leading-none">{recipe.nombre}</h4>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{recipe.ingredientes.length} ingredientes registrados</p>
+                        <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter text-md leading-none">{recipe.nombre}</h4>
+                        <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{recipe.ingredientes.length} INGREDIENTES</p>
                       </div>
                     </div>
-                    <button className="p-3 bg-white dark:bg-gray-800 rounded-xl text-gray-400 hover:text-blue-600 shadow-sm transition-all border border-gray-100 dark:border-gray-700">
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
                  </div>
                ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* MODALES ADAPTADOS CON PRECIOS */}
+      {showRecipeModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-xl border border-gray-200 dark:border-gray-700 overflow-hidden transform animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
+               <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase italic">Nueva Receta Maestra</h2>
+               <button onClick={() => setShowRecipeModal(false)}><X /></button>
+            </div>
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">Producto Final</label>
+                    <input type="text" value={newRecipe.nombre} onChange={e => setNewRecipe(p => ({...p, nombre: e.target.value}))} 
+                      className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none" placeholder="Nombre" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">Precio de Venta</label>
+                    <input type="number" value={newRecipe.precio} onChange={e => setNewRecipe(p => ({...p, precio: e.target.value}))} 
+                      className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-sm font-bold outline-none" placeholder="$ 0.00" />
+                  </div>
+               </div>
+               {/* Ingredientes UI igual que antes... */}
+               <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex gap-3 items-end">
+                     <div className="flex-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase">Ingrediente</label>
+                        <input type="text" value={newRecipe.ingrediente} onChange={e => setNewRecipe(p => ({...p, ingrediente: e.target.value}))} className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-xs font-bold outline-none" />
+                     </div>
+                     <button onClick={addIngredient} className="p-3 bg-blue-600 text-white rounded-xl"><Plus /></button>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                     {newRecipe.ingredientes.map((ing, i) => (
+                       <div key={i} className="flex justify-between bg-gray-50 p-2 rounded-lg text-xs font-bold uppercase">
+                         <span>{ing.nombre}</span>
+                         <span>{ing.cant}</span>
+                       </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
+            <div className="p-6 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
+               <button onClick={handleCreateRecipe} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-500/30">Guardar Receta y Producto</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProdModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700 overflow-hidden transform animate-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-6">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white uppercase italic">Nuevo Producto Directo</h2>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase">Nombre</label>
+                <input type="text" value={newProd.nombre} onChange={e => setNewProd(p => ({...p, nombre: e.target.value}))} className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold uppercase outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase">Precio</label>
+                <input type="number" value={newProd.precio} onChange={e => setNewProd(p => ({...p, precio: e.target.value}))} className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold outline-none" />
+              </div>
+              <button onClick={handleCreateProduct} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl">Registrar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL RECETA */}
       {showRecipeModal && (
