@@ -31,31 +31,45 @@ export default function MaestrosView() {
   }, []);
 
   const fetchProfiles = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.from('profiles').select('*');
-    if (!error && data) setProfiles(data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (error) throw error;
+      if (data) setProfiles(data);
+    } catch (err) {
+      console.error("Error fetching profiles:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddUser = async () => {
     if (!newUser.username || !newUser.pin) return;
-    const { error } = await supabase.from('profiles').insert([{ 
-      username: newUser.username, 
-      pin: newUser.pin, 
-      role: newUser.role 
-    }]);
-    
-    if (!error) {
+    try {
+      const { error } = await supabase.from('profiles').insert([{ 
+        username: newUser.username, 
+        pin: newUser.pin, 
+        role: newUser.role 
+      }]);
+      
+      if (error) throw error;
       fetchProfiles();
       setShowUserModal(false);
       setNewUser({ username: '', pin: '', role: 'vendedor' });
+    } catch (err) {
+      alert("Error al guardar usuario. Revisa la conexión.");
     }
   };
 
   const handleDeleteUser = async (id: string) => {
     if (confirm("¿Estás seguro de eliminar este usuario?")) {
-      const { error } = await supabase.from('profiles').delete().eq('id', id);
-      if (!error) fetchProfiles();
+      try {
+        const { error } = await supabase.from('profiles').delete().eq('id', id);
+        if (error) throw error;
+        fetchProfiles();
+      } catch (err) {
+        alert("No se pudo eliminar el usuario.");
+      }
     }
   };
 
@@ -125,17 +139,17 @@ export default function MaestrosView() {
                     <div key={p.id} className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-between group">
                       <div className="flex justify-between items-start mb-3">
                         <div className="size-12 bg-white dark:bg-gray-700 rounded-xl flex items-center justify-center text-xl font-black text-blue-600 shadow-sm border border-gray-100 dark:border-gray-800">
-                          {p.username.substring(0, 1).toUpperCase()}
+                          {p.username?.substring(0, 1).toUpperCase() || "?"}
                         </div>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
                           p.role === 'admin' ? 'bg-purple-100 text-purple-700' :
                           p.role === 'vendedor' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
                         }`}>
-                          {p.role}
+                          {p.role || 'usuario'}
                         </span>
                       </div>
                       <div className="space-y-1">
-                        <h4 className="font-black text-gray-900 dark:text-white uppercase italic">{p.username}</h4>
+                        <h4 className="font-black text-gray-900 dark:text-white uppercase italic">{p.username || "Sin Nombre"}</h4>
                         <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold">
                           <ShieldCheck className="h-3 w-3" /> PIN: {p.pin}
                         </div>
