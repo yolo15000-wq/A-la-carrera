@@ -26,7 +26,11 @@ const SALES_BY_PRODUCT = [
   { name: 'Otros', sales: 40, color: 'bg-gray-400' },
 ];
 
-export default function DashboardView() {
+interface DashboardViewProps {
+  onViewChange?: (view: string) => void;
+}
+
+export default function DashboardView({ onViewChange }: DashboardViewProps) {
   const { user } = useAuth();
   
   if (!user) return null;
@@ -36,7 +40,7 @@ export default function DashboardView() {
       <div className="space-y-8 py-10">
         <div className="text-center space-y-4">
           <div className="size-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-black mx-auto shadow-xl shadow-blue-500/30 animate-pulse">
-            {user.username.substring(0, 1).toUpperCase()}
+            {user.username?.substring(0, 1).toUpperCase() || "?"}
           </div>
           <div className="space-y-1">
             <h2 className="text-4xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">
@@ -46,18 +50,22 @@ export default function DashboardView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto px-4">
           {user.role === 'vendedor' ? (
-            <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-lg text-center space-y-4 group hover:border-blue-500 transition-all cursor-pointer">
-              <div className="size-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto text-blue-600 group-hover:scale-110 transition-transform">
+            <div 
+              onClick={() => onViewChange?.('Ventas y Rutas')}
+              className="bg-white dark:bg-gray-900 p-8 rounded-3xl border-2 border-transparent hover:border-blue-500 shadow-lg text-center space-y-4 group hover:scale-[1.02] transition-all cursor-pointer">
+              <div className="size-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
                 <Truck className="h-8 w-8" />
               </div>
               <h3 className="font-black text-xl text-gray-900 dark:text-white uppercase">INICIAR MI RUTA</h3>
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wide">Carga tu mercancía y sal a vender</p>
             </div>
           ) : (
-            <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-lg text-center space-y-4 group hover:border-amber-500 transition-all cursor-pointer">
-              <div className="size-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center mx-auto text-amber-600 group-hover:scale-110 transition-transform">
+            <div 
+              onClick={() => onViewChange?.('Producción')}
+              className="bg-white dark:bg-gray-900 p-8 rounded-3xl border-2 border-transparent hover:border-amber-500 shadow-lg text-center space-y-4 group hover:scale-[1.02] transition-all cursor-pointer">
+              <div className="size-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center mx-auto text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-all">
                 <Play className="h-8 w-8" />
               </div>
               <h3 className="font-black text-xl text-gray-900 dark:text-white uppercase">NUEVO LOTE</h3>
@@ -65,11 +73,15 @@ export default function DashboardView() {
             </div>
           )}
           
-          <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-lg text-center space-y-4 group hover:border-green-500 transition-all cursor-pointer">
-            <div className="size-16 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center mx-auto text-green-600 group-hover:scale-110 transition-transform">
+          <div 
+            onClick={() => onViewChange?.(user.role === 'vendedor' ? 'Liquidación' : 'Producto Terminado')}
+            className="bg-white dark:bg-gray-900 p-8 rounded-3xl border-2 border-transparent hover:border-green-500 shadow-lg text-center space-y-4 group hover:scale-[1.02] transition-all cursor-pointer">
+            <div className="size-16 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center mx-auto text-green-600 group-hover:bg-green-600 group-hover:text-white transition-all">
               <Clock className="h-8 w-8" />
             </div>
-            <h3 className="font-black text-xl text-gray-900 dark:text-white uppercase">MI HISTORIAL</h3>
+            <h3 className="font-black text-xl text-gray-900 dark:text-white uppercase">
+              {user.role === 'vendedor' ? 'LIQUIDAR DÍA' : 'INVENTARIO'}
+            </h3>
             <p className="text-xs text-gray-400 font-bold uppercase tracking-wide">Revisa tus registros del día</p>
           </div>
         </div>

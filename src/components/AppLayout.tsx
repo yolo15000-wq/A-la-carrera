@@ -60,6 +60,11 @@ const MainContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const handleLogout = () => {
+    setSelected("Dashboard");
+    logout();
+  };
+
   React.useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
   }, [isDark]);
@@ -90,8 +95,12 @@ const MainContent = () => {
   });
 
   const renderView = () => {
-    switch (selected) {
-      case 'Dashboard':           return <DashboardView />;
+    // Protección de seguridad adicional: Si el usuario actual no tiene permiso para la vista seleccionada, forzar Dashboard
+    const isAllowed = [...filteredMenu, ...filteredAdminMenu].some(item => item.label === selected);
+    const viewToRender = isAllowed ? selected : 'Dashboard';
+
+    switch (viewToRender) {
+      case 'Dashboard':           return <DashboardView onViewChange={setSelected} />;
       case 'Producción':          return <ProduccionView />;
       case 'Ventas y Rutas':      return <VentasView />;
       case 'Liquidación':         return <LiquidacionView />;
@@ -102,7 +111,7 @@ const MainContent = () => {
       case 'Reportes':            return <ReportesView />;
       case 'Configuración':       return <ConfiguracionView />;
       case 'Catálogos':           return <MaestrosView />;
-      default:                    return <DashboardView />;
+      default:                    return <DashboardView onViewChange={setSelected} />;
     }
   };
 
@@ -218,7 +227,7 @@ const MainContent = () => {
                 {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
               <button 
-                onClick={logout}
+                onClick={handleLogout}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100 dark:border-rose-900/30 hover:bg-rose-100 transition-colors">
                 <LogOut className="h-4 w-4" />
                 {sidebarOpen && <span className="text-xs font-bold uppercase">Salir</span>}
