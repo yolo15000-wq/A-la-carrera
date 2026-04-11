@@ -7,10 +7,15 @@ interface Product {
   precio: number;
 }
 
+interface RecipeIngredient {
+  nombre: string;
+  cant: number | string;
+}
+
 interface Recipe {
   id: string;
   nombre: string;
-  ingredientes: string[];
+  ingredientes: RecipeIngredient[];
 }
 
 interface CatalogosContextType {
@@ -18,7 +23,7 @@ interface CatalogosContextType {
   recipes: Recipe[];
   refreshData: () => Promise<void>;
   addProduct: (name: string, price: number) => Promise<void>;
-  addRecipe: (name: string, ingredients: string[], price: number) => Promise<void>;
+  addRecipe: (name: string, ingredients: RecipeIngredient[], price: number) => Promise<void>;
 }
 
 const CatalogosContext = createContext<CatalogosContextType | undefined>(undefined);
@@ -43,7 +48,7 @@ export function CatalogosProvider({ children }: { children: React.ReactNode }) {
     setProducts(prev => [...prev, newProd]);
   };
 
-  const addRecipe = async (name: string, ingredients: string[], price: number) => {
+  const addRecipe = async (name: string, ingredients: RecipeIngredient[], price: number) => {
     const newId = Date.now().toString();
     setRecipes(prev => [...prev, { id: newId, nombre: name.toUpperCase(), ingredientes }]);
     await addProduct(name, price);

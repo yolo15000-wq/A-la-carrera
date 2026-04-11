@@ -83,7 +83,7 @@ export default function MaestrosView() {
 
   const handleCreateRecipe = () => {
     if (!newRecipe.nombre || !newRecipe.precio || newRecipe.ingredientes.length === 0) return;
-    addRecipe(newRecipe.nombre, newRecipe.ingredientes.map(i => i.nombre), parseFloat(newRecipe.precio));
+    addRecipe(newRecipe.nombre, newRecipe.ingredientes, parseFloat(newRecipe.precio));
     setShowRecipeModal(false);
     setNewRecipe({ nombre: '', precio: '', ingrediente: '', cantidad: '', ingredientes: [] });
   };
@@ -228,6 +228,10 @@ export default function MaestrosView() {
                      <div className="flex-1">
                         <label className="text-[10px] font-black text-gray-400 uppercase">Ingrediente</label>
                         <input type="text" value={newRecipe.ingrediente} onChange={e => setNewRecipe(p => ({...p, ingrediente: e.target.value}))} className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-xs font-bold outline-none" />
+                     </div>
+                     <div className="w-24">
+                        <label className="text-[10px] font-black text-gray-400 uppercase">Gramos/Und</label>
+                        <input type="number" placeholder="Ej: 500" value={newRecipe.cantidad} onChange={e => setNewRecipe(p => ({...p, cantidad: e.target.value}))} className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-xs font-bold outline-none" />
                      </div>
                      <button onClick={addIngredient} className="p-3 bg-blue-600 text-white rounded-xl"><Plus /></button>
                   </div>

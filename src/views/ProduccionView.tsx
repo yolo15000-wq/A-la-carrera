@@ -71,7 +71,11 @@ export default function ProduccionView() {
 
     const receta = recipes.find(r => r.nombre === form.producto);
     if (receta) {
-      descontarInsumos(receta.ingredientes, form.tandas);
+      const isms = receta.ingredientes.map(ing => ({
+         insumo: typeof ing === 'string' ? ing : ing.nombre,
+         cantidad_gr: typeof ing === 'string' ? 0 : Number(ing.cant) || 0
+      }));
+      descontarInsumos(isms, Number(form.tandas));
     }
 
     setLotes(prev => [nuevo, ...prev]);
@@ -227,9 +231,9 @@ export default function ProduccionView() {
                  </div>
                  <div className="text-center">
                     <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Tandas</p>
-                    <input type="number" min={1} value={form.tandas}
-                      onChange={e => setForm(p => ({ ...p, tandas: parseInt(e.target.value) || 1 }))}
-                      className="bg-transparent text-2xl font-black text-gray-900 dark:text-white w-12 text-center outline-none" />
+                    <input type="number" min={1} value={form.tandas || ''}
+                      onChange={e => setForm(p => ({ ...p, tandas: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))}
+                      className="bg-transparent text-2xl font-black text-gray-900 dark:text-white w-20 text-center outline-none" />
                  </div>
               </div>
             </div>

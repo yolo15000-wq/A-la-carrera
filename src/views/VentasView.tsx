@@ -505,8 +505,8 @@ export default function VentasView() {
                 </div>
                 <div className="col-span-1">
                   <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Unidades</label>
-                  <input type="number" min={1} value={formSalida.cantidad_salida}
-                    onChange={e => setFormSalida(p => ({ ...p, cantidad_salida: parseInt(e.target.value) || 0 }))}
+                  <input type="number" min={1} value={formSalida.cantidad_salida || ''}
+                    onChange={e => setFormSalida(p => ({ ...p, cantidad_salida: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))}
                     className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-5 py-4 text-sm font-bold outline-none" />
                 </div>
               </div>
@@ -541,14 +541,14 @@ export default function VentasView() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad Vendida</label>
-                  <input type="number" min={0} max={salidaSeleccionada.cantidad_salida} value={formLiq.cantidad_venta}
-                    onChange={e => setFormLiq(p => ({ ...p, cantidad_venta: parseInt(e.target.value) || 0 }))}
+                  <input type="number" min={0} max={salidaSeleccionada.cantidad_salida} value={formLiq.cantidad_venta === 0 ? '' : formLiq.cantidad_venta}
+                    onChange={e => setFormLiq(p => ({ ...p, cantidad_venta: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))}
                     className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad Devuelta</label>
-                  <input type="number" min={0} max={salidaSeleccionada.cantidad_salida} value={formLiq.cantidad_devolucion}
-                    onChange={e => setFormLiq(p => ({ ...p, cantidad_devolucion: parseInt(e.target.value) || 0 }))}
+                  <input type="number" min={0} max={salidaSeleccionada.cantidad_salida} value={formLiq.cantidad_devolucion === 0 ? '' : formLiq.cantidad_devolucion}
+                    onChange={e => setFormLiq(p => ({ ...p, cantidad_devolucion: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))}
                     className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
               </div>
