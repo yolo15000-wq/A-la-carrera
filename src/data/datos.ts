@@ -55,23 +55,23 @@ export interface MovimientoStock {
 
 // --- MATERIA PRIMA (Inventario_Prima real del Excel) ---
 export const MATERIA_PRIMA_INICIAL: InsumoBD[] = [
-  { codigo: 'Cr',  insumo: 'Carne',              existencia: 30000, unidad: 'gr' },
-  { codigo: 'Gr',  insumo: 'Grasa',              existencia: 32000, unidad: 'gr' },
-  { codigo: 'S1',  insumo: 'Sal Normal',          existencia: 1110,  unidad: 'gr' },
-  { codigo: 'S2',  insumo: 'Sal Nitro',           existencia: 1320,  unidad: 'gr' },
-  { codigo: 'Ga',  insumo: 'Glutamato',           existencia: 815,   unidad: 'gr' },
-  { codigo: 'Jc',  insumo: 'Jamón California',    existencia: 1610,  unidad: 'gr' },
-  { codigo: 'Pt',  insumo: 'Proteína',            existencia: 265,   unidad: 'gr' },
-  { codigo: 'Sh',  insumo: 'Sabor Hamburguesa',   existencia: 330,   unidad: 'gr' },
-  { codigo: 'St',  insumo: 'Salmuera Tocineta',   existencia: 1815,  unidad: 'gr' },
-  { codigo: 'Ca',  insumo: 'Chorizo Antioqueño',  existencia: 1420,  unidad: 'gr' },
-  { codigo: 'Cl',  insumo: 'Color',               existencia: 2000,  unidad: 'gr' },
-  { codigo: 'Pu',  insumo: 'Cebolla',             existencia: 1000,  unidad: 'gr' },
-  { codigo: 'Tripa', insumo: 'Tripa',             existencia: 5,     unidad: 'unt' },
-  { codigo: 'crispeta', insumo: 'Crispeta',       existencia: 5000,  unidad: 'gr' },
-  { codigo: 'Pb',  insumo: 'Polvo Biscocho',      existencia: 3000,  unidad: 'gr' },
-  { codigo: 'Tocineta', insumo: 'Tocineta',       existencia: 4000,  unidad: 'gr' },
-  { codigo: 'bolsas', insumo: 'Bolsas',           existencia: 200,   unidad: 'unt' },
+  { codigo: 'Cr',  insumo: 'Carne',              existencia: 0, unidad: 'gr' },
+  { codigo: 'Gr',  insumo: 'Grasa',              existencia: 0, unidad: 'gr' },
+  { codigo: 'S1',  insumo: 'Sal Normal',          existencia: 0, unidad: 'gr' },
+  { codigo: 'S2',  insumo: 'Sal Nitro',           existencia: 0, unidad: 'gr' },
+  { codigo: 'Ga',  insumo: 'Glutamato',           existencia: 0, unidad: 'gr' },
+  { codigo: 'Jc',  insumo: 'Jamón California',    existencia: 0, unidad: 'gr' },
+  { codigo: 'Pt',  insumo: 'Proteína',            existencia: 0, unidad: 'gr' },
+  { codigo: 'Sh',  insumo: 'Sabor Hamburguesa',   existencia: 0, unidad: 'gr' },
+  { codigo: 'St',  insumo: 'Salmuera Tocineta',   existencia: 0, unidad: 'gr' },
+  { codigo: 'Ca',  insumo: 'Chorizo Antioqueño',  existencia: 0, unidad: 'gr' },
+  { codigo: 'Cl',  insumo: 'Color',               existencia: 0, unidad: 'gr' },
+  { codigo: 'Pu',  insumo: 'Cebolla',             existencia: 0, unidad: 'gr' },
+  { codigo: 'Tripa', insumo: 'Tripa',             existencia: 0, unidad: 'unt' },
+  { codigo: 'crispeta', insumo: 'Crispeta',       existencia: 0, unidad: 'gr' },
+  { codigo: 'Pb',  insumo: 'Polvo Biscocho',      existencia: 0, unidad: 'gr' },
+  { codigo: 'Tocineta', insumo: 'Tocineta',       existencia: 0, unidad: 'gr' },
+  { codigo: 'bolsas', insumo: 'Bolsas',           existencia: 0, unidad: 'unt' },
 ];
 
 // Stock mínimos recomendados
@@ -201,19 +201,14 @@ function horasFormateadas(decimal: number): string {
 }
 
 // --- PRODUCCIONES REALES (de la hoja Producciones del Excel) ---
-export const PRODUCCIONES_INICIALES: LoteBD[] = [
-  { id_lote: 'CHO-250325-01',    fecha: excelDateToString(46103), producto: 'Chorizo 12 und',   tandas: 2, operario: 'Camila',   hora_decimal: 0.295, horas_formateadas: horasFormateadas(0.295), estado: 'Terminado' },
-  { id_lote: 'CHO-230326-01',    fecha: excelDateToString(46104), producto: 'Chorizo 12 und',   tandas: 1, operario: 'Jeferson', hora_decimal: 0.504, horas_formateadas: horasFormateadas(0.504), estado: 'Terminado' },
-  { id_lote: 'ROL-230326-01',    fecha: excelDateToString(46104), producto: 'Rollo',             tandas: 1, operario: 'Claudia',  hora_decimal: 0.505, horas_formateadas: horasFormateadas(0.505), estado: 'Terminado' },
-  { id_lote: 'CHO18-230326-01',  fecha: excelDateToString(46104), producto: 'Chorizo 18 und',   tandas: 1, operario: 'Franklin', hora_decimal: 0.506, horas_formateadas: horasFormateadas(0.506), estado: 'Terminado' },
-];
+export const PRODUCCIONES_INICIALES: LoteBD[] = [];
 
 // --- STOCK CENTRAL (Inventario_Produ del Excel) ---
 export const STOCK_CENTRAL_INICIAL: Record<string, number> = {
-  'Chorizo S':     51,
-  'Rollos':        21,
-  'Chorizos M x5': 1,
-  'Chorizo M x10': 5,
+  'Chorizo S':     0,
+  'Rollos':        0,
+  'Chorizos M x5': 0,
+  'Chorizo M x10': 0,
 };
 
 // --- OPERARIOS reales ---

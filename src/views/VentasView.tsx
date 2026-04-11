@@ -39,20 +39,9 @@ interface LiquidacionRuta {
 }
 
 // ─── Datos iniciales ────────────────────────────────────────────────────────
-const SALIDAS_INICIALES: SalidaRuta[] = [
-  { id: 1, fecha: '25/03/2026', vendedor: 'Franklin',  ruta: 'Ruta Norte',  producto: 'Chorizo S',     cantidad_salida: 20, estado: 'En Ruta' },
-  { id: 2, fecha: '25/03/2026', vendedor: 'Claudia',   ruta: 'Ruta Centro', producto: 'Rollos',        cantidad_salida: 10, estado: 'En Ruta' },
-  { id: 3, fecha: '24/03/2026', vendedor: 'Jeferson',  ruta: 'Ruta Sur',    producto: 'Chorizo M x10', cantidad_salida:  5, estado: 'Liquidado' },
-];
+const SALIDAS_INICIALES: SalidaRuta[] = [];
 
-const LIQUIDACIONES_INICIALES: LiquidacionRuta[] = [
-  {
-    id: 1, salida_id: 3,
-    fecha: '24/03/2026', vendedor: 'Jeferson', ruta: 'Ruta Sur', producto: 'Chorizo M x10',
-    cantidad_salida: 5, cantidad_venta: 4, cantidad_devolucion: 1,
-    tipo_pago: 'Contado',
-  },
-];
+const LIQUIDACIONES_INICIALES: LiquidacionRuta[] = [];
 
 // ─── Componente ─────────────────────────────────────────────────────────────
 import { useAuth } from "../context/AuthContext";
