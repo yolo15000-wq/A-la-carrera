@@ -1,16 +1,14 @@
-const WEBAPP_URL = import.meta.env.VITE_GOOGLE_SHEETS_URL;
-
 export type SheetName = 'Inventario' | 'Produccion' | 'Ventas' | 'Liquidacion' | 'Configuracion' | 'ProductosTerminados' | 'Cartera' | 'Clientes';
 
 export const googleSheetsService = {
   /**
-   * Obtener datos de una hoja específica
+   * Obtener datos de manera local para el prototipo (Cero conexión externa)
    */
   async getSheetData<T>(sheet: SheetName): Promise<T[]> {
     try {
-      const response = await fetch(`${WEBAPP_URL}?sheet=${sheet}`);
-      if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-      return await response.json();
+      const data = localStorage.getItem(`demo_${sheet}`);
+      if (data) return JSON.parse(data);
+      return [];
     } catch (error) {
       console.error(`Error al leer desde ${sheet}:`, error);
       return [];
@@ -18,20 +16,14 @@ export const googleSheetsService = {
   },
 
   /**
-   * Agregar una nueva fila a una hoja específica
+   * Agregar una nueva fila de manera local
    */
   async appendRow(sheet: SheetName, data: any): Promise<boolean> {
     try {
-      const response = await fetch(WEBAPP_URL, {
-        method: 'POST',
-        // mode: 'no-cors', // NO USAR no-cors si queremos ver errores, aunque Google a veces redirige
-        body: JSON.stringify({
-          sheet,
-          action: 'append',
-          data,
-        }),
-      });
-      return response.status === 200 || response.status === 0;
+      const existing = await this.getSheetData<any>(sheet);
+      existing.push(data);
+      localStorage.setItem(`demo_${sheet}`, JSON.stringify(existing));
+      return true;
     } catch (error) {
       console.error(`Error al escribir en ${sheet}:`, error);
       return false;
@@ -39,21 +31,19 @@ export const googleSheetsService = {
   },
 
   /**
-   * Actualizar una fila basada en una columna llave
+   * Actualizar una fila de manera local
    */
   async updateRow(sheet: SheetName, keyColumn: string, keyValue: any, data: any): Promise<boolean> {
     try {
-      const response = await fetch(WEBAPP_URL, {
-        method: 'POST',
-        body: JSON.stringify({
-          sheet,
-          action: 'update',
-          keyColumn,
-          keyValue,
-          data,
-        }),
+      const existing = await this.getSheetData<any>(sheet);
+      const updated = existing.map(item => {
+        if (item[keyColumn] === keyValue) {
+           return { ...item, ...data };
+        }
+        return item;
       });
-      return response.status === 200 || response.status === 0;
+      localStorage.setItem(`demo_${sheet}`, JSON.stringify(updated));
+      return true;
     } catch (error) {
       console.error(`Error al actualizar en ${sheet}:`, error);
       return false;
