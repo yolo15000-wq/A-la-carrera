@@ -11,12 +11,18 @@ import {
   CheckCircle
 } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function CarteraView() {
+  const { user } = useAuth();
   const { creditos, marcarPagoCredito, loading } = useContext(InventarioContext);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const creditosFiltrados = creditos.filter(c => 
+  const creditosPermitidos = user?.role === 'vendedor' 
+    ? creditos.filter(c => c.vendedor === user.username)
+    : creditos;
+
+  const creditosFiltrados = creditosPermitidos.filter(c => 
     c.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.vendedor.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -71,7 +77,60 @@ export default function CarteraView() {
             </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* VISIÓN MÓVIL (Tarjetas) */}
+        <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+          {creditosFiltrados.map((credito, i) => (
+            <div key={credito.id_credito || i} className="p-4 space-y-3">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 font-bold">
+                    {credito.cliente.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase leading-tight">{credito.cliente}</h4>
+                    <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5"><MapPin className="h-3 w-3" /> {credito.direccion || 'Sin dirección'}</p>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusColor(credito.estado, credito.fecha_cobro)}`}>
+                  {isVencido(credito.fecha_cobro) && credito.estado !== 'Pagado' ? 'Vencido' : credito.estado}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-end bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                <div>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Monto Deuda</p>
+                  <p className="text-xl font-black text-gray-900 dark:text-white leading-none">${Number(credito.monto_deuda).toLocaleString('es-CO')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">F. Cobro</p>
+                  <p className={`text-xs font-bold flex items-center justify-end gap-1 ${isVencido(credito.fecha_cobro) ? 'text-rose-600' : 'text-gray-600 dark:text-gray-300'}`}>
+                    <Calendar className="h-3 w-3" /> {credito.fecha_cobro}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase">
+                  <User className="h-3 w-3 text-gray-400" /> {credito.vendedor}
+                </div>
+                {credito.estado !== 'Pagado' && (
+                  <button onClick={() => marcarPagoCredito(credito.id_credito!)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 shadow-md active:scale-95 transition-transform">
+                    <CheckCircle className="h-4 w-4" /> Registrar Pago
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          {creditosFiltrados.length === 0 && !loading && (
+            <div className="p-8 text-center text-gray-400 flex flex-col items-center gap-2">
+              <Users className="h-12 w-12 opacity-20" />
+              <p className="text-sm">No se encontraron créditos registrados</p>
+            </div>
+          )}
+        </div>
+
+        {/* VISIÓN DESKTOP (Tabla) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-gray-800/50">

@@ -3,7 +3,7 @@ import {
   Plus, Truck, RotateCcw, DollarSign, CreditCard,
   PackageCheck, ClipboardList, CheckCircle2, Clock3
 } from "lucide-react";
-import { VENDEDORES, RUTAS, PRODUCTOS_VENTA, STOCK_CENTRAL_INICIAL } from "../data/datos";
+import { VENDEDORES, PRODUCTOS_VENTA, STOCK_CENTRAL_INICIAL } from "../data/datos";
 import { InventarioContext } from "../context/InventarioContext";
 import { useClientes } from "../context/ClientesContext";
 import { googleSheetsService } from "../services/googleSheetsService";
@@ -62,7 +62,7 @@ import { useCatalogos } from "../context/CatalogosContext";
 
 export default function VentasView() {
   const { user } = useAuth();
-  const { products } = useCatalogos();
+  const { products, rutas } = useCatalogos();
   const { descontarProductoTerminado, agregarProductoTerminado, registrarCredito } = useContext(InventarioContext);
   const { clientes } = useClientes();
   const [activeTab, setActiveTab] = useState<'salidas' | 'liquidacion'>('salidas');
@@ -76,9 +76,9 @@ export default function VentasView() {
   const [showLiqModal, setShowLiqModal] = useState(false);
   const [salidaSeleccionada, setSalidaSeleccionada] = useState<SalidaRuta | null>(null);
 
-  // Formulario salida (Sin vendedor, es automático)
+  // Formulario salida
   const [formSalida, setFormSalida] = useState({
-    ruta: '', producto: '', cantidad_salida: 0,
+    ruta: '', producto: '', cantidad_salida: 0, vendedor: ''
   });
 
   // Formulario liquidación
@@ -94,10 +94,13 @@ export default function VentasView() {
   const registrarSalida = async () => {
     if (!user || !formSalida.producto || formSalida.cantidad_salida <= 0) return;
     
+    const vendedorElegido = user.role === 'admin' ? formSalida.vendedor : user.username;
+    if (!vendedorElegido) return alert("Debes seleccionar un vendedor");
+
     const nuevaSalida: SalidaRuta = {
       id: Date.now(),
       fecha: new Date().toLocaleDateString('es-CO'),
-      vendedor: user.username, // AUTOMÁTICO
+      vendedor: vendedorElegido,
       ruta: formSalida.ruta,
       producto: formSalida.producto,
       cantidad_salida: formSalida.cantidad_salida,
@@ -116,7 +119,7 @@ export default function VentasView() {
 
     setSalidas(prev => [nuevaSalida, ...prev]);
     setShowSalidaModal(false);
-    setFormSalida({ ruta: '', producto: '', cantidad_salida: 0 });
+    setFormSalida({ ruta: '', producto: '', cantidad_salida: 0, vendedor: '' });
   };
 
   // ---- Abrir liquidación de una salida ----
@@ -179,22 +182,64 @@ export default function VentasView() {
 
     // 3. Sincronizar con Google Sheets (Hoja Liquidacion)
     await googleSheetsService.appendRow('Liquidacion', nueva);
-    // Y marcar la venta como liquidada en la hoja "Ventas"
-    await googleSheetsService.updateRow('Ventas', 'id', salidaSeleccionada.id, { estado: 'Liquidado' });
+    
+    const qVenta = formLiq.cantidad_venta;
+    const qDevol = formLiq.cantidad_devolucion;
+    const qTotalLiq = qVenta + qDevol;
+
+    if (qTotalLiq <= 0) {
+       alert("Debes ingresar al menos una cantidad vendida o devuelta.");
+       return;
+    }
+    if (qTotalLiq > (salidaSeleccionada.cantidad_salida)) {
+       alert("No puedes liquidar más de lo que sacaste a ruta.");
+       return;
+    }
+
+    const isPartial = qTotalLiq < salidaSeleccionada.cantidad_salida;
+    const qRestante = salidaSeleccionada.cantidad_salida - qTotalLiq;
+
+    // Actualizar la ruta original (se "cierra" pero solo por la cantidad que liquidó)
+    googleSheetsService.updateRow('SalidasRuta', 'id', salidaSeleccionada.id, { 
+      estado: 'Liquidado',
+      cantidad_salida: qTotalLiq
+    });
+
+    // Si sobraron unidades reales sin liquidar, generamos un clon "En Ruta" con el saldo
+    let nuevaRutaSaldo: any = null;
+    if (isPartial) {
+      nuevaRutaSaldo = {
+        ...salidaSeleccionada,
+        id: `RUT-${Date.now()}-REM`,
+        cantidad_salida: qRestante,
+        estado: 'En Ruta'
+      };
+      googleSheetsService.appendRow('SalidasRuta', nuevaRutaSaldo);
+    }
+
+    setSalidas(prev => {
+      const updated = prev.map(s => s.id === salidaSeleccionada.id ? { ...s, estado: 'Liquidado' as const, cantidad_salida: qTotalLiq } : s);
+      return nuevaRutaSaldo ? [nuevaRutaSaldo, ...updated] : updated;
+    });
 
     setLiquidaciones(prev => [nueva, ...prev]);
-    setSalidas(prev => prev.map(s =>
-      s.id === salidaSeleccionada.id ? { ...s, estado: 'Liquidado' } : s
-    ));
     setShowLiqModal(false);
     setSalidaSeleccionada(null);
   };
 
+  // ---- Filtros por Rol ----
+  const salidasFiltradas = user?.role === 'vendedor'
+    ? salidas.filter(s => s.vendedor === user.username)
+    : salidas;
+  const liquidacionesFiltradas = user?.role === 'vendedor'
+    ? liquidaciones.filter(l => l.vendedor === user.username)
+    : liquidaciones;
+
   // ---- KPIs ----
-  const enRutaCount = salidas.filter(s => s.estado === 'En Ruta').length;
-  const totalContado = liquidaciones.filter(l => l.tipo_pago === 'Contado').reduce((a, l) => a + l.cantidad_venta, 0);
-  const totalCredito = liquidaciones.filter(l => l.tipo_pago === 'Crédito').reduce((a, l) => a + l.cantidad_venta, 0);
-  const totalDevoluciones = liquidaciones.reduce((a, l) => a + l.cantidad_devolucion, 0);
+  const enRutaCount = salidasFiltradas.filter(s => s.estado === 'En Ruta').length;
+  const totalContado = liquidacionesFiltradas.filter(l => l.tipo_pago === 'Contado').reduce((a, l) => a + l.cantidad_venta, 0);
+  const totalCredito = liquidacionesFiltradas.filter(l => l.tipo_pago === 'Crédito').reduce((a, l) => a + l.cantidad_venta, 0);
+  const totalDevoluciones = liquidacionesFiltradas.reduce((a, l) => a + l.cantidad_devolucion, 0);
 
   return (
     <div className="space-y-6">
@@ -252,7 +297,7 @@ export default function VentasView() {
         <div className="space-y-4 md:space-y-0">
           {/* VISTA MÓVIL (TARJETAS) */}
           <div className="md:hidden space-y-4">
-            {salidas.map(s => (
+            {salidasFiltradas.map(s => (
               <div key={s.id} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-3">
                   <div>
@@ -307,7 +352,7 @@ export default function VentasView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {salidas.map(s => (
+                {salidasFiltradas.map(s => (
                   <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                     <td className="px-4 py-3 text-gray-500 text-xs">{s.fecha}</td>
                     <td className="px-4 py-3 font-bold text-gray-800 dark:text-gray-200 uppercase">{s.vendedor}</td>
@@ -350,12 +395,12 @@ export default function VentasView() {
               <h3 className="font-bold text-green-800 dark:text-green-300 flex items-center gap-2 uppercase text-xs tracking-widest">
                 <DollarSign className="h-4 w-4" /> Ventas de Contado
               </h3>
-              <span className="bg-green-600 text-white text-[10px] px-2 py-0.5 rounded-full">{liquidaciones.filter(l => l.tipo_pago === 'Contado').length}</span>
+              <span className="bg-green-600 text-white text-[10px] px-2 py-0.5 rounded-full">{liquidacionesFiltradas.filter(l => l.tipo_pago === 'Contado').length}</span>
             </div>
 
             {/* MÓVIL (TARJETAS) */}
             <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
-              {liquidaciones.filter(l => l.tipo_pago === 'Contado').map(l => (
+              {liquidacionesFiltradas.filter(l => l.tipo_pago === 'Contado').map(l => (
                 <div key={l.id} className="p-4 space-y-2 hover:bg-gray-50 dark:hover:bg-gray-800/30">
                   <div className="flex justify-between items-start">
                     <span className="text-[10px] text-gray-500 font-bold uppercase">{l.fecha} · {l.ruta}</span>
@@ -381,7 +426,7 @@ export default function VentasView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {liquidaciones.filter(l => l.tipo_pago === 'Contado').map(l => (
+                  {liquidacionesFiltradas.filter(l => l.tipo_pago === 'Contado').map(l => (
                     <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-4 py-3 text-gray-500 text-xs">{l.fecha}</td>
                       <td className="px-4 py-3 font-bold text-gray-800 dark:text-gray-200 uppercase">{l.vendedor}</td>
@@ -403,12 +448,12 @@ export default function VentasView() {
               <h3 className="font-bold text-orange-800 dark:text-orange-300 flex items-center gap-2 uppercase text-xs tracking-widest">
                 <CreditCard className="h-4 w-4" /> Ventas a Crédito
               </h3>
-              <span className="bg-orange-600 text-white text-[10px] px-2 py-0.5 rounded-full">{liquidaciones.filter(l => l.tipo_pago === 'Crédito').length}</span>
+              <span className="bg-orange-600 text-white text-[10px] px-2 py-0.5 rounded-full">{liquidacionesFiltradas.filter(l => l.tipo_pago === 'Crédito').length}</span>
             </div>
 
             {/* MÓVIL (TARJETAS) */}
             <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
-              {liquidaciones.filter(l => l.tipo_pago === 'Crédito').map(l => (
+              {liquidacionesFiltradas.filter(l => l.tipo_pago === 'Crédito').map(l => (
                 <div key={l.id} className="p-4 space-y-3 hover:bg-gray-50 dark:hover:bg-gray-800/30">
                   <div className="flex justify-between items-start">
                     <span className="text-[10px] text-gray-500 font-bold uppercase">{l.fecha} · {l.vendedor}</span>
@@ -443,7 +488,7 @@ export default function VentasView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {liquidaciones.filter(l => l.tipo_pago === 'Crédito').map(l => (
+                  {liquidacionesFiltradas.filter(l => l.tipo_pago === 'Crédito').map(l => (
                     <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-4 py-3 text-gray-500 text-xs">{l.fecha}</td>
                       <td className="px-4 py-3 font-bold text-gray-800 dark:text-gray-200 uppercase">{l.vendedor}</td>
@@ -478,10 +523,21 @@ export default function VentasView() {
             </div>
             <div className="p-8 space-y-6">
               <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl">
-                 <div>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase">Vendedor Responsable</p>
-                    <p className="text-lg font-black text-gray-900 dark:text-white uppercase italic">{user?.username}</p>
-                 </div>
+                 {user?.role === 'admin' ? (
+                   <div className="w-full mr-4">
+                     <p className="text-[10px] text-gray-400 font-bold uppercase mb-2 tracking-widest">Asignar Vendedor</p>
+                     <select value={formSalida.vendedor} onChange={e => setFormSalida(p => ({ ...p, vendedor: e.target.value }))}
+                       className="w-full bg-white dark:bg-gray-900 border-2 border-transparent focus:border-blue-500 rounded-2xl px-5 py-4 text-sm font-bold outline-none uppercase tracking-tight">
+                       <option value="">-- Elegir Vendedor --</option>
+                       {VENDEDORES.map(v => <option key={v} value={v}>{v}</option>)}
+                     </select>
+                   </div>
+                 ) : (
+                   <div>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">Vendedor Responsable</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white uppercase italic">{user?.username}</p>
+                   </div>
+                 )}
                  <Truck className="text-blue-600 h-8 w-8 opacity-20" />
               </div>
 
@@ -490,7 +546,7 @@ export default function VentasView() {
                 <select value={formSalida.ruta} onChange={e => setFormSalida(p => ({ ...p, ruta: e.target.value }))}
                   className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-5 py-4 text-sm font-bold outline-none uppercase tracking-tight">
                   <option value="">-- Seleccionar Ruta --</option>
-                  {RUTAS.map(r => <option key={r} value={r}>{r}</option>)}
+                  {rutas.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
 

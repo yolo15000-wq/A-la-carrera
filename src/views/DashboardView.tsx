@@ -1,4 +1,7 @@
 import { useAuth } from "../context/AuthContext";
+import { useState, useEffect, useContext } from "react";
+import { InventarioContext } from "../context/InventarioContext";
+import { googleSheetsService } from "../services/googleSheetsService";
 import { 
   TrendingUp, 
   Users, 
@@ -8,7 +11,8 @@ import {
   ArrowDownRight,
   Clock,
   Play,
-  Truck
+  Truck,
+  Activity
 } from "lucide-react";
 
 const STATS = [
@@ -32,6 +36,23 @@ interface DashboardViewProps {
 
 export default function DashboardView({ onViewChange }: DashboardViewProps) {
   const { user } = useAuth();
+  const { creditos } = useContext(InventarioContext);
+  const [activosRuta, setActivosRuta] = useState<any[]>([]);
+  const [activosProd, setActivosProd] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      const loadActivos = async () => {
+        try {
+          const salidas = await googleSheetsService.getSheetData<any>('SalidasRuta');
+          const lotes = await googleSheetsService.getSheetData<any>('Produccion');
+          if (salidas) setActivosRuta(salidas.filter((s: any) => s.estado === 'En Ruta'));
+          if (lotes) setActivosProd(lotes.filter((l: any) => l.estado === 'En Proceso'));
+        } catch (e) { console.warn(e); }
+      };
+      loadActivos();
+    }
+  }, [user]);
   
   if (!user) return null;
 
@@ -150,33 +171,67 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
           </div>
         </div>
 
-        {/* Recent Activity / Credits */}
-        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-          <h3 className="font-bold text-gray-900 dark:text-white mb-6">Próximos Cobros</h3>
-          <div className="space-y-4">
-            {[
-              { client: 'Tienda Doña Juana', date: 'Mañana', amount: '$120,000', status: 'Pendiente' },
-              { client: 'Carnicería Central', date: '12 Abr', amount: '$450,000', status: 'Pendiente' },
-              { client: 'Minimercado Express', date: '15 Abr', amount: '$85,000', status: 'Vencido' },
-              { client: 'Supermercado Sol', date: '18 Abr', amount: '$195,000', status: 'Pendiente' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-800">
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">{item.client}</span>
-                  <span className="text-xs text-gray-500">{item.date}</span>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">{item.amount}</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.status === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'}`}>
-                    {item.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+        <div className="space-y-6">
+          {/* Operaciones en Tiempo Real */}
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm border-t-4 border-t-amber-500">
+            <h3 className="font-black text-gray-900 dark:text-white uppercase tracking-tighter flex items-center gap-2 mb-4">
+               <Activity className="h-5 w-5 text-amber-500" /> Monitoreo en Vivo
+            </h3>
+            
+            <div className="space-y-3">
+               {activosProd.map((l, i) => (
+                 <div key={'p'+i} className="flex justify-between items-center p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+                    <div className="flex gap-3 items-center">
+                       <Play className="h-4 w-4 text-amber-500 animate-pulse" />
+                       <div>
+                          <p className="text-xs font-black uppercase tracking-tight text-gray-900 dark:text-gray-100">{l.producto}</p>
+                          <p className="text-[10px] uppercase text-gray-500">Prod: {l.operario}</p>
+                       </div>
+                    </div>
+                    <span className="text-[10px] font-black bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full uppercase">Progreso</span>
+                 </div>
+               ))}
+               {activosRuta.map((r, i) => (
+                 <div key={'r'+i} className="flex justify-between items-center p-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
+                    <div className="flex gap-3 items-center">
+                       <Truck className="h-4 w-4 text-blue-500 animate-bounce" />
+                       <div>
+                          <p className="text-xs font-black uppercase tracking-tight text-gray-900 dark:text-gray-100">{r.vendedor}</p>
+                          <p className="text-[10px] uppercase text-gray-500">{r.producto}</p>
+                       </div>
+                    </div>
+                    <span className="text-[10px] font-black bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full uppercase">En Ruta</span>
+                 </div>
+               ))}
+               {(activosProd.length === 0 && activosRuta.length === 0) && (
+                 <p className="text-xs text-gray-400 text-center py-4 font-bold uppercase tracking-widest">Sin actividad actual</p>
+               )}
+            </div>
           </div>
-          <button className="w-full mt-6 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-            Ver Cartera Completa
-          </button>
+
+          {/* Recent Activity / Credits */}
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm border-t-4 border-t-blue-500">
+            <h3 className="font-bold text-gray-900 dark:text-white uppercase tracking-tighter mb-4">Próximos Cobros</h3>
+            <div className="space-y-4">
+              {creditos.filter(c => c.estado !== 'Pagado').slice(0, 4).map((item, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase">{item.cliente}</span>
+                    <span className="text-[10px] text-gray-500 font-bold tracking-widest">{item.fecha_cobro}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-gray-900 dark:text-white">${Number(item.monto_deuda).toLocaleString('es-CO')}</p>
+                  </div>
+                </div>
+              ))}
+              {creditos.filter(c => c.estado !== 'Pagado').length === 0 && (
+                 <p className="text-xs text-gray-400 text-center py-2 font-bold uppercase tracking-widest">Sin deudas pendientes</p>
+              )}
+            </div>
+            <button onClick={() => onViewChange?.('Cartera')} className="w-full mt-4 py-2.5 text-xs font-black uppercase text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">
+              Ver Cartera Completa
+            </button>
+          </div>
         </div>
       </div>
     </div>

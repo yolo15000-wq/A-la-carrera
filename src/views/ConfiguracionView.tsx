@@ -1,13 +1,23 @@
 import { useState } from "react";
 import { Plus, BookOpen } from "lucide-react";
-import { RECETAS, OPERARIOS, VENDEDORES, RUTAS } from "../data/datos";
+import { RECETAS, OPERARIOS, VENDEDORES } from "../data/datos";
 import type { RecetaBD } from "../data/datos";
+import { useCatalogos } from "../context/CatalogosContext";
 
 export default function ConfiguracionView() {
+  const { rutas, addRuta } = useCatalogos();
   const [recetas] = useState<RecetaBD[]>(RECETAS);
   const [tab, setTab] = useState<'recetas' | 'operarios' | 'rutas'>('recetas');
   const [showRecetaModal, setShowRecetaModal] = useState(false);
   const [selectedReceta, setSelectedReceta] = useState<RecetaBD | null>(null);
+  const [nuevaRutaInput, setNuevaRutaInput] = useState("");
+
+  const handleAddRuta = () => {
+     if(nuevaRutaInput.trim()) {
+         addRuta(nuevaRutaInput.trim());
+         setNuevaRutaInput("");
+     }
+  };
 
   return (
     <div className="space-y-6">
@@ -103,21 +113,25 @@ export default function ConfiguracionView() {
 
       {/* Rutas */}
       {tab === 'rutas' && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">{RUTAS.length} rutas configuradas</p>
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <p className="text-sm text-gray-500">{rutas.length} rutas configuradas actualmente</p>
+            <div className="flex w-full md:w-auto gap-2">
+                <input type="text" value={nuevaRutaInput} onChange={e => setNuevaRutaInput(e.target.value)} placeholder="Ej. Ruta Norte 2..." className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-2 outline-none text-sm font-bold uppercase transition focus:border-blue-500" />
+                <button onClick={handleAddRuta} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold uppercase disabled:opacity-50">Agregar</button>
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {RUTAS.map((ruta, i) => {
+            {rutas.map((ruta, i) => {
               const colors = ['blue', 'green', 'purple', 'orange'];
-              const c = colors[i % colors.length];
+              const col = colors[i % colors.length];
               return (
-                <div key={ruta} className={`bg-white dark:bg-gray-900 rounded-xl border-2 p-4 shadow-sm border-${c}-200 dark:border-${c}-900/50`}>
-                  <div className={`w-8 h-8 rounded-lg bg-${c}-100 dark:bg-${c}-900/30 flex items-center justify-center mb-3`}>
-                    <span className={`font-bold text-${c}-700 dark:text-${c}-400`}>{i + 1}</span>
+                <div key={i} className={`bg-white dark:bg-gray-900 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-800 hover:border-${col}-500 transition-colors`}>
+                  <div className={`w-10 h-10 rounded-xl bg-${col}-50 dark:bg-${col}-900/20 flex items-center justify-center mb-4 text-${col}-600 dark:text-${col}-400 font-black`}>
+                    {i + 1}
                   </div>
-                  <p className="font-semibold text-gray-800 dark:text-gray-200">{ruta}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Vendedor: {VENDEDORES[i % VENDEDORES.length]}
-                  </p>
+                  <h4 className="font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest text-sm">{ruta}</h4>
+                  <p className="text-[10px] text-gray-400 mt-2">Vendedor recurrente: {VENDEDORES[i % VENDEDORES.length]}</p>
                 </div>
               );
             })}

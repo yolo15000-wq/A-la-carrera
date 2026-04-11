@@ -24,6 +24,8 @@ interface CatalogosContextType {
   refreshData: () => Promise<void>;
   addProduct: (name: string, price: number) => Promise<void>;
   addRecipe: (name: string, ingredients: RecipeIngredient[], price: number) => Promise<void>;
+  rutas: string[];
+  addRuta: (nombre: string) => Promise<void>;
 }
 
 const CatalogosContext = createContext<CatalogosContextType | undefined>(undefined);
@@ -54,8 +56,14 @@ export function CatalogosProvider({ children }: { children: React.ReactNode }) {
     await addProduct(name, price);
   };
 
+  const [rutas, setRutas] = useState<string[]>(['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente']);
+
+  const addRuta = async (nombre: string) => {
+    setRutas(prev => [...prev, nombre]);
+  };
+
   return (
-    <CatalogosContext.Provider value={{ products, recipes, refreshData, addProduct, addRecipe }}>
+    <CatalogosContext.Provider value={{ products, recipes, refreshData, addProduct, addRecipe, rutas, addRuta }}>
       {children}
     </CatalogosContext.Provider>
   );

@@ -15,17 +15,37 @@ export default function ReportesView() {
   const { productosTerminados } = useContext(InventarioContext);
   const [periodo, setPeriodo] = useState("Mensual");
 
-  // Datos simulados para demostración (esto luego se conectará a las liquidaciones reales)
-  const ingresos = 4500000;
-  const costos = 2800000;
+  // Mapeo dinámico del factor de proyección
+  const factor = periodo === 'Diario' ? 0.033 : periodo === 'Semanal' ? 0.25 : periodo === 'Anual' ? 12 : 1;
+
+  // Datos adaptables (hasta conectar API total)
+  const baseIngresos = 4500000;
+  const baseCostos = 2800000;
+
+  const ingresos = baseIngresos * factor;
+  const costos = baseCostos * factor;
   const utilidad = ingresos - costos;
   const porcentajeUtilidad = ((utilidad / ingresos) * 100).toFixed(1);
 
   const VENTAS_POR_VENDEDOR = [
-    { name: 'Claudia', sales: 1800000, profit: 720000 },
-    { name: 'Franklin', sales: 1450000, profit: 580000 },
-    { name: 'Jeferson', sales: 1250000, profit: 500000 },
+    { name: 'Claudia', sales: 1800000 * factor, profit: 720000 * factor },
+    { name: 'Franklin', sales: 1450000 * factor, profit: 580000 * factor },
+    { name: 'Jeferson', sales: 1250000 * factor, profit: 500000 * factor },
   ];
+
+  const handleDownload = () => {
+    const headers = "Vendedor,Ventas Totales,Rentabilidad\n";
+    const rows = VENTAS_POR_VENDEDOR.map(v => `${v.name},$${Math.round(v.sales)},$${Math.round(v.profit)}`).join("\n");
+    const csvContent = "Resumen de Utilidad: $" + Math.round(utilidad) + "\n\n" + headers + rows;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_financiero_${periodo.toLowerCase()}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -35,7 +55,7 @@ export default function ReportesView() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Análisis financiero de tu producción y ventas</p>
         </div>
         <div className="flex gap-2">
-            <button className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-2 rounded-lg text-gray-600 hover:text-blue-600 transition-colors">
+            <button onClick={handleDownload} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-2 rounded-lg text-gray-600 hover:text-blue-600 transition-colors active:scale-95 shadow-sm">
                 <Download className="h-4 w-4" />
             </button>
             <select 
@@ -46,6 +66,7 @@ export default function ReportesView() {
                 <option>Diario</option>
                 <option>Semanal</option>
                 <option>Mensual</option>
+                <option>Anual</option>
             </select>
         </div>
       </div>
