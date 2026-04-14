@@ -1,13 +1,23 @@
 import { useContext, useMemo } from "react";
-import { CheckCircle, DollarSign, CreditCard, AlertCircle, Users } from "lucide-react";
+import { CheckCircle, DollarSign, CreditCard, AlertCircle } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function LiquidacionView() {
+  const { user } = useAuth();
   const { creditos, marcarPagoCredito } = useContext(InventarioContext);
 
-  const pendientes = useMemo(() => creditos.filter(c => c.estado === 'Pendiente'), [creditos]);
-  const pagadas    = useMemo(() => creditos.filter(c => c.estado === 'Pagado'), [creditos]);
-  
+  // Cada vendedor ve SOLO sus própios créditos
+  const misCar = useMemo(() =>
+    user?.role === 'vendedor'
+      ? creditos.filter(c => c.vendedor === user.username)
+      : creditos,
+    [creditos, user]
+  );
+
+  const pendientes = useMemo(() => misCar.filter(c => c.estado === 'Pendiente'), [misCar]);
+  const pagadas    = useMemo(() => misCar.filter(c => c.estado === 'Pagado'), [misCar]);
+
   const totalPendiente = useMemo(() => pendientes.reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0), [pendientes]);
   const totalRecaudado = useMemo(() => pagadas.reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0), [pagadas]);
 
@@ -19,9 +29,9 @@ export default function LiquidacionView() {
   }), [pendientes, today]);
 
   const balanceVendedores = useMemo(() => {
-    const vNames = Array.from(new Set(creditos.map(c => c.vendedor)));
+    const vNames = Array.from(new Set(misCar.map(c => c.vendedor)));
     return vNames.map(v => {
-      const items = creditos.filter(c => c.vendedor === v);
+      const items = misCar.filter(c => c.vendedor === v);
       return {
         vendedor: v,
         pend: items.filter(c => c.estado === 'Pendiente').reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0),
@@ -29,7 +39,7 @@ export default function LiquidacionView() {
         numPend: items.filter(c => c.estado === 'Pendiente').length
       };
     }).sort((a,b) => b.pend - a.pend);
-  }, [creditos]);
+  }, [misCar]);
 
   return (
     <div className="space-y-6">

@@ -149,34 +149,66 @@ export default function VentasView() {
     if (!salidaActual || !formularioOk) return;
     setSaving(true);
     const fecha = new Date().toLocaleDateString('es-CO');
-    const base = { salida_id: salidaActual.id, fecha, vendedor: salidaActual.vendedor, ruta: salidaActual.ruta, producto: salidaActual.producto, cantidad_salida: salidaActual.cantidad_salida };
+
+    // Buscar precio del producto para calcular valor real de la deuda
+    const productoObj = products.find(
+      p => p.nombre.toLowerCase() === salidaActual.producto.toLowerCase()
+    );
+    const precioUnitario = productoObj?.precio ?? 0;
+
+    const base = {
+      salida_id: salidaActual.id, fecha,
+      vendedor: salidaActual.vendedor, ruta: salidaActual.ruta,
+      producto: salidaActual.producto, precio_unitario: precioUnitario,
+      cantidad_salida: salidaActual.cantidad_salida
+    };
 
     // 1. Registrar venta de contado
     if (cantidadContado > 0) {
-      const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, cantidad_devolucion: 0 };
+      const totalContado = cantidadContado * precioUnitario;
+      const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado, cantidad_devolucion: 0 };
       await googleSheetsService.appendRow('Liquidacion', liqContado);
       setHistorial(prev => [liqContado, ...prev]);
     }
 
     // 2. Registrar cada venta a crédito
     for (const cr of creditosItems) {
-      const liqCred = { ...base, id: `LIQ-${Date.now()}-CR-${cr.clienteNombre}`, tipo_pago: 'Crédito', cantidad_venta: cr.cantidad, cantidad_devolucion: 0, cliente: cr.clienteNombre, telefono: cr.telefono, direccion: cr.direccion, fecha_cobro: cr.fecha_cobro };
+      // CORRECTO: monto en pesos = unidades × precio
+      const montoPesos = cr.cantidad * precioUnitario;
+      const liqCred = {
+        ...base,
+        id: `LIQ-${Date.now()}-CR-${cr.clienteNombre.replace(/\s/g,'')}`,
+        tipo_pago: 'Crédito',
+        cantidad_venta: cr.cantidad,         // unidades
+        total_pesos: montoPesos,             // valor en $
+        cantidad_devolucion: 0,
+        cliente: cr.clienteNombre, telefono: cr.telefono,
+        direccion: cr.direccion, fecha_cobro: cr.fecha_cobro,
+      };
       await googleSheetsService.appendRow('Liquidacion', liqCred);
       setHistorial(prev => [liqCred, ...prev]);
 
-      // Registrar crédito en cartera
+      // Registrar crédito en cartera (monto en PESOS, no en unidades)
       await registrarCredito({
-        id_credito: `CRD-${Date.now()}-${cr.clienteNombre}`,
-        cliente: cr.clienteNombre, vendedor: salidaActual.vendedor,
-        monto_deuda: cr.cantidad,  // en unidades — ajusta si manejas precios
-        fecha_cobro: cr.fecha_cobro, estado: 'Pendiente',
-        telefono: cr.telefono, direccion: cr.direccion, fecha_registro: fecha,
+        id_credito: `CRD-${Date.now()}-${cr.clienteNombre.replace(/\s/g,'')}`,
+        cliente: cr.clienteNombre,
+        vendedor: salidaActual.vendedor,
+        monto_deuda: montoPesos,             // ← PESOS REALES
+        fecha_cobro: cr.fecha_cobro,
+        estado: 'Pendiente',
+        telefono: cr.telefono,
+        direccion: cr.direccion,
+        fecha_registro: fecha,
       });
 
       // Auto-registrar cliente si no existe
       const existe = clientes.find(c => c.nombre.toLowerCase() === cr.clienteNombre.toLowerCase());
       if (!existe) {
-        await agregarCliente({ nombre: cr.clienteNombre, telefono: cr.telefono, direccion: cr.direccion, ruta: salidaActual.ruta, vendedor: salidaActual.vendedor });
+        await agregarCliente({
+          nombre: cr.clienteNombre, telefono: cr.telefono,
+          direccion: cr.direccion, ruta: salidaActual.ruta,
+          vendedor: salidaActual.vendedor,
+        });
       }
     }
 
@@ -265,17 +297,31 @@ export default function VentasView() {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 uppercase font-black text-[9px] text-gray-400 tracking-[2px]">
-                  <tr>{['Fecha','Vendedor','Producto','Contado','Crédito','Cliente'].map(h => <th key={h} className="px-8 py-5">{h}</th>)}</tr>
+                  <tr>
+                    {['Fecha','Vendedor','Producto','Tipo','Cant. (UND)','Valor ($)','Cliente'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {historialFiltrado.map((l, i) => (
                     <tr key={String(l.id ?? i)} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-8 py-4 text-[10px] font-bold text-gray-400">{l.fecha}</td>
-                      <td className="px-8 py-4 font-black text-xs uppercase italic">{l.vendedor}</td>
-                      <td className="px-8 py-4 font-black text-gray-900 uppercase italic">{l.producto}</td>
-                      <td className="px-8 py-4 text-xl font-black text-emerald-600 italic">{l.tipo_pago === 'Contado' ? l.cantidad_venta : '—'}</td>
-                      <td className="px-8 py-4 text-xl font-black text-orange-500 italic">{l.tipo_pago === 'Crédito' ? l.cantidad_venta : '—'}</td>
-                      <td className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase">{l.cliente ?? '—'}</td>
+                      <td className="px-6 py-4 text-[10px] font-bold text-gray-400">{l.fecha}</td>
+                      <td className="px-6 py-4 font-black text-xs uppercase italic">{l.vendedor}</td>
+                      <td className="px-6 py-4 font-black text-gray-900 uppercase italic text-xs">{l.producto}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${l.tipo_pago === 'Contado' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {l.tipo_pago}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-black text-center text-gray-900">
+                        {l.cantidad_venta} <span className="text-[9px] text-gray-400 font-bold">und</span>
+                      </td>
+                      <td className="px-6 py-4 font-black text-center">
+                        {l.total_pesos
+                          ? <span className="text-blue-600">${Number(l.total_pesos).toLocaleString('es-CO')}</span>
+                          : <span className="text-gray-300">—</span>
+                        }
+                      </td>
+                      <td className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase">{l.cliente ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
