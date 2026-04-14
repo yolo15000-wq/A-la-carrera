@@ -1,100 +1,99 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import { createContext, useState, useContext, useEffect, useCallback } from "react";
+import type { ReactNode } from "react";
 import { googleSheetsService } from "../services/googleSheetsService";
 
-interface Product {
+export interface Ingredient {
+  nombre: string;
+  cant: number;
+  tipo: 'grams' | 'units';
+}
+
+export interface Recipe {
   id: string;
   nombre: string;
   precio: number;
+  ingredientes: Ingredient[];
 }
 
-interface RecipeIngredient {
-  nombre: string;
-  cant: number | string;
-  unidad: 'gr' | 'und';
-}
-
-interface Recipe {
+export interface Product {
   id: string;
   nombre: string;
-  ingredientes: RecipeIngredient[];
+  stock: number;
+  precio: number;
 }
 
 interface CatalogosContextType {
   products: Product[];
   recipes: Recipe[];
-  refreshData: () => Promise<void>;
-  addProduct: (name: string, price: number) => Promise<void>;
-  addRecipe: (name: string, ingredients: RecipeIngredient[], price: number) => Promise<void>;
-  rutas: string[];
-  addRuta: (nombre: string) => Promise<void>;
+  routes: string[];
+  addRecipe: (recipe: Recipe) => Promise<void>;
+  addProduct: (product: Product) => Promise<void>;
+  addRoute: (route: string) => void;
+  loading: boolean;
 }
 
 const CatalogosContext = createContext<CatalogosContextType | undefined>(undefined);
 
-export function CatalogosProvider({ children }: { children: React.ReactNode }) {
+export function CatalogosProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [rutas, setRutas] = useState<string[]>(['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente']);
+  const [routes, setRoutes] = useState<string[]>(['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente']);
+  const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
     try {
-      const [p, r, rt] = await Promise.all([
-        googleSheetsService.getSheetData<Product>('Configuracion'), // sheet 'Productos' maybe? but service uses 'Configuracion'
-        googleSheetsService.getSheetData<Recipe>('Inventario'), // Usually recipes are in sheets too
-        googleSheetsService.getSheetData<any>('Liquidacion') // Placeholder for routes
+      const [sheetProducts, sheetRecipes] = await Promise.all([
+        googleSheetsService.getSheetData<Product>('ProductosTerminados'),
+        googleSheetsService.getSheetData<Recipe>('Recipes')
       ]);
+
+      if (sheetProducts.length > 0) setProducts(sheetProducts);
+      if (sheetRecipes.length > 0) setRecipes(sheetRecipes);
       
-      const storedProds = await googleSheetsService.getSheetData<Product>('ProductosTerminados' as any);
-      if (storedProds && storedProds.length > 0) setProducts(storedProds);
-      else {
-        setProducts([
-          { id: '1', nombre: 'Chorizo S (12 und)', precio: 25000 },
-          { id: '2', nombre: 'Chorizo M (x5)', precio: 12000 },
-          { id: '3', nombre: 'Chorizo L (x10)', precio: 22000 },
-        ]);
-      }
-
-      const storedRecipes = await googleSheetsService.getSheetData<Recipe>('Recipes' as any);
-      if (storedRecipes && storedRecipes.length > 0) setRecipes(storedRecipes);
-
-      const storedRutas = JSON.parse(localStorage.getItem('demo_rutas') || '[]');
-      if (storedRutas.length > 0) setRutas(storedRutas);
-
-    } catch (e) {
-      console.error(e);
+      const localRoutes = localStorage.getItem('demo_routes');
+      if (localRoutes) setRoutes(JSON.parse(localRoutes));
+    } catch (err) {
+      console.error("Error cargando catálogos:", err);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
-  const refreshData = async () => {
-    await loadData();
+  const addProduct = async (product: Product) => {
+    await googleSheetsService.appendRow('ProductosTerminados', product);
+    setProducts(prev => [...prev, product]);
   };
 
-  const addProduct = async (name: string, price: number) => {
-    const newProd = { id: Date.now().toString(), nombre: name.toUpperCase(), precio: price };
-    setProducts(prev => [...prev, newProd]);
-    await googleSheetsService.appendRow('ProductosTerminados' as any, newProd);
+  const addRecipe = async (recipe: Recipe) => {
+    // 1. Guardar receta
+    await googleSheetsService.appendRow('Recipes', recipe);
+    setRecipes(prev => [...prev, recipe]);
+
+    // 2. Crear producto automáticamente en el catálogo
+    const nuevoProducto: Product = {
+      id: recipe.id,
+      nombre: recipe.nombre,
+      stock: 0,
+      precio: recipe.precio
+    };
+    await addProduct(nuevoProducto);
   };
 
-  const addRecipe = async (name: string, ingredients: RecipeIngredient[], price: number) => {
-    const newId = Date.now().toString();
-    const newRecipe = { id: newId, nombre: name.toUpperCase(), ingredientes };
-    setRecipes(prev => [...prev, newRecipe]);
-    await googleSheetsService.appendRow('Recipes' as any, newRecipe);
-    await addProduct(name, price);
-  };
-
-  const addRuta = async (nombre: string) => {
-    const updated = [...rutas, nombre];
-    setRutas(updated);
-    localStorage.setItem('demo_rutas', JSON.stringify(updated));
+  const addRoute = (route: string) => {
+    setRoutes(prev => {
+      const next = [...prev, route];
+      localStorage.setItem('demo_routes', JSON.stringify(next));
+      return next;
+    });
   };
 
   return (
-    <CatalogosContext.Provider value={{ products, recipes, refreshData, addProduct, addRecipe, rutas, addRuta }}>
+    <CatalogosContext.Provider value={{ products, recipes, routes, addRecipe, addProduct, addRoute, loading }}>
       {children}
     </CatalogosContext.Provider>
   );
@@ -102,6 +101,6 @@ export function CatalogosProvider({ children }: { children: React.ReactNode }) {
 
 export function useCatalogos() {
   const context = useContext(CatalogosContext);
-  if (!context) throw new Error("useCatalogos debe usarse dentro de CatalogosProvider");
+  if (!context) throw new Error("useCatalogos debe usarse dentro de un CatalogosProvider");
   return context;
 }

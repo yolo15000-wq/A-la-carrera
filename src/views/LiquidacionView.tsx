@@ -1,116 +1,110 @@
-import { useState } from "react";
-import { CheckCircle, DollarSign, CreditCard, AlertCircle } from "lucide-react";
-
-interface DeudaCliente {
-  id: number;
-  cliente: string;
-  telefono: string;
-  monto_deuda: number;
-  fecha_venta: string;
-  fecha_cobro: string;
-  estado: 'Pendiente' | 'Pagado';
-  vendedor: string;
-}
-
-const CARTERA_INICIAL: DeudaCliente[] = [
-  { id: 1, cliente: 'Tienda Doña Rosa',    telefono: '3101234567', monto_deuda: 450000, fecha_venta: '20/03/2026', fecha_cobro: '01/04/2026', estado: 'Pendiente', vendedor: 'Claudia' },
-  { id: 2, cliente: 'Supermercado El Rey', telefono: '3209876543', monto_deuda: 320000, fecha_venta: '22/03/2026', fecha_cobro: '05/04/2026', estado: 'Pendiente', vendedor: 'Franklin' },
-  { id: 3, cliente: 'Miscelánea La Roca',  telefono: '3154567890', monto_deuda: 180000, fecha_venta: '18/03/2026', fecha_cobro: '28/03/2026', estado: 'Pagado',    vendedor: 'Jeferson' },
-  { id: 4, cliente: 'Tienda El Paisa',     telefono: '3001112233', monto_deuda: 750000, fecha_venta: '23/03/2026', fecha_cobro: '02/04/2026', estado: 'Pendiente', vendedor: 'Claudia' },
-];
+import { useContext, useMemo } from "react";
+import { CheckCircle, DollarSign, CreditCard, AlertCircle, Users } from "lucide-react";
+import { InventarioContext } from "../context/InventarioContext";
 
 export default function LiquidacionView() {
-  const [cartera, setCartera] = useState<DeudaCliente[]>(CARTERA_INICIAL);
+  const { creditos, marcarPagoCredito } = useContext(InventarioContext);
 
-  const marcarPago = (id: number) => {
-    setCartera(prev => prev.map(c => c.id === id ? { ...c, estado: 'Pagado' } : c));
-  };
-
-  const pendientes = cartera.filter(c => c.estado === 'Pendiente');
-  const pagadas    = cartera.filter(c => c.estado === 'Pagado');
-  const totalPendiente = pendientes.reduce((a, c) => a + c.monto_deuda, 0);
-  const totalRecaudado = pagadas.reduce((a, c) => a + c.monto_deuda, 0);
+  const pendientes = useMemo(() => creditos.filter(c => c.estado === 'Pendiente'), [creditos]);
+  const pagadas    = useMemo(() => creditos.filter(c => c.estado === 'Pagado'), [creditos]);
+  
+  const totalPendiente = useMemo(() => pendientes.reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0), [pendientes]);
+  const totalRecaudado = useMemo(() => pagadas.reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0), [pagadas]);
 
   const today = new Date();
-  const vencidas = pendientes.filter(c => {
+  const vencidas = useMemo(() => pendientes.filter(c => {
+    if (!c.fecha_cobro) return false;
     const [d, m, y] = c.fecha_cobro.split('/').map(Number);
     return new Date(y, m - 1, d) < today;
-  });
+  }), [pendientes, today]);
+
+  const balanceVendedores = useMemo(() => {
+    const vNames = Array.from(new Set(creditos.map(c => c.vendedor)));
+    return vNames.map(v => {
+      const items = creditos.filter(c => c.vendedor === v);
+      return {
+        vendedor: v,
+        pend: items.filter(c => c.estado === 'Pendiente').reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0),
+        cobr: items.filter(c => c.estado === 'Pagado').reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0),
+        numPend: items.filter(c => c.estado === 'Pendiente').length
+      };
+    }).sort((a,b) => b.pend - a.pend);
+  }, [creditos]);
 
   return (
     <div className="space-y-6">
       {/* Resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-red-200 dark:border-red-900/50 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <CreditCard className="h-5 w-5 text-red-500" />
-            <span className="text-sm text-gray-500">Pendiente de Cobro</span>
+        <div className="bg-white dark:bg-gray-900 rounded-[30px] border border-gray-100 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+             <div className="size-8 bg-rose-50 rounded-xl flex items-center justify-center text-rose-500"><CreditCard size={16} /></div>
+             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Pendiente Cobro</span>
           </div>
-          <p className="text-2xl font-bold text-red-600">${totalPendiente.toLocaleString('es-CO')}</p>
-          <p className="text-xs text-gray-400 mt-1">{pendientes.length} clientes</p>
+          <p className="text-3xl font-black text-rose-600 italic tracking-tighter">${totalPendiente.toLocaleString('es-CO')}</p>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{pendientes.length} Clientes Activos</p>
         </div>
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-green-200 dark:border-green-900/50 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="h-5 w-5 text-green-500" />
-            <span className="text-sm text-gray-500">Recaudado</span>
+        
+        <div className="bg-white dark:bg-gray-900 rounded-[30px] border border-gray-100 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+             <div className="size-8 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500"><DollarSign size={16} /></div>
+             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Recaudado</span>
           </div>
-          <p className="text-2xl font-bold text-green-600">${totalRecaudado.toLocaleString('es-CO')}</p>
-          <p className="text-xs text-gray-400 mt-1">{pagadas.length} clientes pagados</p>
+          <p className="text-3xl font-black text-emerald-600 italic tracking-tighter">${totalRecaudado.toLocaleString('es-CO')}</p>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{pagadas.length} Cobros Exitosos</p>
         </div>
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-orange-200 dark:border-orange-900/50 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertCircle className="h-5 w-5 text-orange-500" />
-            <span className="text-sm text-gray-500">Vencidas Hoy</span>
+
+        <div className="bg-white dark:bg-gray-900 rounded-[30px] border border-gray-100 p-6 shadow-sm overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10"><AlertCircle size={80} /></div>
+          <div className="flex items-center gap-2 mb-3">
+             <div className="size-8 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500"><AlertCircle size={16} /></div>
+             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Vencidas Hoy</span>
           </div>
-          <p className="text-2xl font-bold text-orange-600">{vencidas.length}</p>
-          <p className="text-xs text-gray-400 mt-1">clientes con cobro vencido</p>
+          <p className="text-3xl font-black text-orange-600 italic tracking-tighter">{vencidas.length}</p>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Requieren Atención</p>
         </div>
       </div>
 
-      {/* Cartera pendiente */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Cartera de Clientes</h3>
-          <div className="flex gap-2 text-xs">
-            <span className="px-2 py-0.5 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-full font-medium">{pendientes.length} pendientes</span>
-            <span className="px-2 py-0.5 bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 rounded-full font-medium">{pagadas.length} pagadas</span>
-          </div>
+      <div className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-8 py-6 border-b border-gray-50 flex items-center justify-between">
+           <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cartera de Clientes</h3>
         </div>
 
-        <div className="divide-y divide-gray-100 dark:divide-gray-800">
-          {cartera.map(c => {
-            const [d, m, y] = c.fecha_cobro.split('/').map(Number);
-            const vencida = c.estado === 'Pendiente' && new Date(y, m - 1, d) < today;
+        <div className="divide-y divide-gray-50">
+          {creditos.length === 0 && (
+            <div className="p-20 text-center">
+               <p className="text-gray-300 font-black uppercase italic tracking-widest">No hay créditos registrados</p>
+            </div>
+          )}
+          {creditos.map((c, i) => {
+            const isVencida = vencidas.some(v => v.id_credito === c.id_credito);
             return (
-              <div key={c.id} className={`flex items-center justify-between px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors ${vencida ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+              <div key={c.id_credito || i} className="p-6 flex flex-wrap items-center justify-between hover:bg-gray-50/50 transition-colors gap-4">
                 <div className="flex items-center gap-4">
-                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    c.estado === 'Pagado'    ? 'bg-green-500' :
-                    vencida                 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]' :
-                                              'bg-orange-400'}`} />
+                  <div className={`size-12 rounded-2xl flex items-center justify-center font-black italic text-xl ${c.estado === 'Pagado' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                    {c.cliente.charAt(0)}
+                  </div>
                   <div>
-                    <p className="font-semibold text-gray-800 dark:text-gray-100">{c.cliente}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      📞 {c.telefono} · Vendedor: {c.vendedor} · Vence: {c.fecha_cobro}
-                    </p>
+                    <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tight">{c.cliente}</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Vendedor: {c.vendedor} · Vence: {c.fecha_cobro}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+
+                <div className="flex items-center gap-8">
                   <div className="text-right">
-                    <p className={`font-bold ${c.estado === 'Pagado' ? 'text-green-600 line-through' : vencida ? 'text-red-600' : 'text-gray-800 dark:text-gray-100'}`}>
-                      ${c.monto_deuda.toLocaleString('es-CO')}
+                    <p className={`text-xl font-black italic tracking-tighter ${c.estado === 'Pagado' ? 'text-gray-300' : isVencida ? 'text-rose-600' : 'text-gray-900'}`}>
+                      ${Number(c.monto_deuda).toLocaleString('es-CO')}
                     </p>
-                    <p className="text-xs text-gray-400">Venta: {c.fecha_venta}</p>
-                  </div>
-                  {c.estado === 'Pendiente' ? (
-                    <button onClick={() => marcarPago(c.id)}
-                      className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap">
-                      <CheckCircle className="h-3.5 w-3.5" /> Marcar Pago
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-semibold">
-                      <CheckCircle className="h-4 w-4" /> Pagado
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                      c.estado === 'Pagado' ? 'bg-emerald-100 text-emerald-600' : isVencida ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'
+                    }`}>
+                      {c.estado === 'Pagado' ? 'Pagado' : isVencida ? 'Vencido' : 'Pendiente'}
                     </span>
+                  </div>
+                  {c.estado !== 'Pagado' && (
+                    <button onClick={() => marcarPagoCredito(c.id_credito!)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 transition-all">
+                      MARCAR PAGO
+                    </button>
                   )}
                 </div>
               </div>
@@ -119,39 +113,46 @@ export default function LiquidacionView() {
         </div>
       </div>
 
-      {/* Balance por vendedor */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Balance por Vendedor</h3>
+      {/* Balance por Vendedor */}
+      <div className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-8 py-6 border-b border-gray-50">
+           <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest italic flex items-center gap-2">
+             <Users size={12} /> Balance por Vendedor
+           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800/60">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50/50">
               <tr>
-                {['Vendedor','Deudas Pendientes','Monto Pendiente','Monto Cobrado'].map(h => (
-                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                {['Vendedor','Pendientes','Monto Pendiente','Cobrados'].map(h => (
+                  <th key={h} className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-[2px]">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {['Claudia', 'Franklin', 'Jeferson'].map(vendedor => {
-                const items = cartera.filter(c => c.vendedor === vendedor);
-                const pend  = items.filter(c => c.estado === 'Pendiente').reduce((a, c) => a + c.monto_deuda, 0);
-                const cobr  = items.filter(c => c.estado === 'Pagado').reduce((a, c) => a + c.monto_deuda, 0);
-                const numPend = items.filter(c => c.estado === 'Pendiente').length;
-                return (
-                  <tr key={vendedor} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
-                    <td className="px-5 py-3 font-semibold text-gray-800 dark:text-gray-200">{vendedor}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${numPend > 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`}>
-                        {numPend} pendientes
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 font-bold text-red-500">${pend.toLocaleString('es-CO')}</td>
-                    <td className="px-5 py-3 font-bold text-green-600">${cobr.toLocaleString('es-CO')}</td>
-                  </tr>
-                );
-              })}
+            <tbody className="divide-y divide-gray-50">
+              {balanceVendedores.map(v => (
+                <tr key={v.vendedor} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-8 py-5">
+                    <p className="font-black text-gray-900 uppercase italic tracking-tighter text-lg leading-none">{v.vendedor}</p>
+                  </td>
+                  <td className="px-8 py-5">
+                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${v.numPend > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {v.numPend} facturas
+                    </span>
+                  </td>
+                  <td className="px-8 py-5">
+                    <p className="text-xl font-black text-rose-600 italic tracking-tighter">${v.pend.toLocaleString('es-CO')}</p>
+                  </td>
+                  <td className="px-8 py-5">
+                    <p className="text-xl font-black text-emerald-600 italic tracking-tighter">${v.cobr.toLocaleString('es-CO')}</p>
+                  </td>
+                </tr>
+              ))}
+              {balanceVendedores.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="p-10 text-center text-gray-300 font-bold uppercase italic tracking-widest">Sin actividad de vendedores</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

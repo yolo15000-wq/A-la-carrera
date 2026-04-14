@@ -28,10 +28,10 @@ export interface Credito {
 }
 
 const PRODUCTOS_TERMINADOS_INICIALES: ProductoTerminado[] = [
-  { id: 'chorizo-s',   nombre: 'Chorizo S',    descripcion: '12 unidades por bolsa',  stock: STOCK_CENTRAL_INICIAL['Chorizo S'] ?? 51, unidad: 'bolsas', precio_venta: 12000, stock_minimo: 10 },
-  { id: 'chorizo-m',   nombre: 'Chorizo M',    descripcion: '5 unidades por bolsa',   stock: STOCK_CENTRAL_INICIAL['Chorizos M x5'] ?? 1,  unidad: 'bolsas', precio_venta: 8000,  stock_minimo: 5  },
-  { id: 'chorizo-l',   nombre: 'Chorizo L',    descripcion: '10 unidades por bolsa',  stock: STOCK_CENTRAL_INICIAL['Chorizo M x10'] ?? 5, unidad: 'bolsas', precio_venta: 15000, stock_minimo: 5  },
-  { id: 'rollo',       nombre: 'Rollos',       descripcion: 'Rollo de carne',          stock: STOCK_CENTRAL_INICIAL['Rollos'] ?? 21,      unidad: 'und',    precio_venta: 20000, stock_minimo: 5  },
+  { id: 'chorizo-s',   nombre: 'Chorizo S',    descripcion: '12 unidades por bolsa',  stock: 0, unidad: 'bolsas', precio_venta: 12000, stock_minimo: 10 },
+  { id: 'chorizo-m',   nombre: 'Chorizo M',    descripcion: '5 unidades por bolsa',   stock: 0,  unidad: 'bolsas', precio_venta: 8000,  stock_minimo: 5  },
+  { id: 'chorizo-l',   nombre: 'Chorizo L',    descripcion: '10 unidades por bolsa',  stock: 0, unidad: 'bolsas', precio_venta: 15000, stock_minimo: 5  },
+  { id: 'rollo',       nombre: 'Rollos',       descripcion: 'Rollo de carne',          stock: 0,      unidad: 'und',    precio_venta: 20000, stock_minimo: 5  },
 ];
 
 interface InventarioContextType {
@@ -81,10 +81,17 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
         }
 
         if (sheetProductos && sheetProductos.length > 0) {
-          setProductosTerminados(prev => prev.map(p => {
-            const fromSheet = (sheetProductos as any[]).find(sp => sp.id === p.id);
-            return fromSheet ? { ...p, stock: Number(fromSheet.stock) } : p;
-          }));
+          setProductosTerminados(prev => {
+            const sheetItems = sheetProductos as any[];
+            // Actualizar los existentes
+            const updated = prev.map(p => {
+              const fromSheet = sheetItems.find(sp => sp.id === p.id);
+              return fromSheet ? { ...p, stock: Number(fromSheet.stock) } : p;
+            });
+            // Añadir los nuevos que no estaban en la lista inicial
+            const nuevos = sheetItems.filter(si => !prev.some(p => p.id === si.id));
+            return [...updated, ...nuevos];
+          });
         }
 
         // Cargar Cartera Unificada
