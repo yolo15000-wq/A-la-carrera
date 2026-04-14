@@ -1,34 +1,17 @@
 import { useAuth } from "../context/AuthContext";
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import { InventarioContext } from "../context/InventarioContext";
 import { googleSheetsService } from "../services/googleSheetsService";
 import { 
-  TrendingUp, 
   Users, 
   Package, 
   DollarSign, 
-  ArrowUpRight, 
-  ArrowDownRight,
   Clock,
   Play,
   Truck,
-  Activity
+  Activity,
+  ChevronRight
 } from "lucide-react";
-
-const STATS = [
-  { label: 'Ingresos Totales', value: '$4,250,000', change: '+12.5%', tendency: 'up', icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-  { label: 'Unidades Vendidas', value: '1,240', change: '+18.2%', tendency: 'up', icon: Package, color: 'text-blue-600', bg: 'bg-blue-100' },
-  { label: 'Créditos Activos', value: '$850,000', change: '-4.3%', tendency: 'down', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-100' },
-  { label: 'Clientes Nuevos', value: '12', change: '+2', tendency: 'up', icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
-];
-
-const SALES_BY_PRODUCT = [
-  { name: 'Chorizo S', sales: 450, color: 'bg-blue-500' },
-  { name: 'Chorizo M', sales: 320, color: 'bg-indigo-500' },
-  { name: 'Chorizo L', sales: 280, color: 'bg-cyan-500' },
-  { name: 'Rollos', sales: 150, color: 'bg-purple-500' },
-  { name: 'Otros', sales: 40, color: 'bg-gray-400' },
-];
 
 interface DashboardViewProps {
   onViewChange?: (view: string) => void;
@@ -36,202 +19,215 @@ interface DashboardViewProps {
 
 export default function DashboardView({ onViewChange }: DashboardViewProps) {
   const { user } = useAuth();
-  const { creditos } = useContext(InventarioContext);
+  const { creditos, productosTerminados } = useContext(InventarioContext);
   const [activosRuta, setActivosRuta] = useState<any[]>([]);
   const [activosProd, setActivosProd] = useState<any[]>([]);
+  const [metasGlobales, setMetasGlobales] = useState({ ventas: 0, cobros: 0 });
 
   useEffect(() => {
     if (user?.role === 'admin') {
       const loadActivos = async () => {
         try {
-          const salidas = await googleSheetsService.getSheetData<any>('SalidasRuta');
-          const lotes = await googleSheetsService.getSheetData<any>('Produccion');
-          if (salidas) setActivosRuta(salidas.filter((s: any) => s.estado === 'En Ruta'));
+          const [ventas, lotes, liq] = await Promise.all([
+            googleSheetsService.getSheetData<any>('Ventas'),
+            googleSheetsService.getSheetData<any>('Produccion'),
+            googleSheetsService.getSheetData<any>('Liquidacion')
+          ]);
+          
+          if (ventas) setActivosRuta(ventas.filter((s: any) => s.estado === 'En Ruta'));
           if (lotes) setActivosProd(lotes.filter((l: any) => l.estado === 'En Proceso'));
+          
+          // Calcular metas basadas en liquidaciones del día
+          const totalVentas = (liq || []).reduce((a: number, b: any) => a + (Number(b.cantidad_venta) || 0), 0);
+          setMetasGlobales({ ventas: totalVentas, cobros: creditos.length });
         } catch (e) { console.warn(e); }
       };
       loadActivos();
+      const interval = setInterval(loadActivos, 30000); // Poll every 30s for "Live" feel
+      return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, creditos]);
   
+  const totalCartera = useMemo(() => creditos.reduce((a, b) => a + (Number(b.monto_deuda) || 0), 0), [creditos]);
+  const stockTotal = useMemo(() => productosTerminados.reduce((a, b) => a + b.stock, 0), [productosTerminados]);
+
   if (!user) return null;
 
+  // Render para Operarios/Vendedores
   if (user.role !== 'admin') {
     return (
       <div className="space-y-8 py-10">
         <div className="text-center space-y-4">
-          <div className="size-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-black mx-auto shadow-xl shadow-blue-500/30 animate-pulse">
+          <div className="size-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-black mx-auto shadow-xl shadow-blue-500/30 animate-pulse border-4 border-white dark:border-gray-800">
             {user.username?.substring(0, 1).toUpperCase() || "?"}
           </div>
           <div className="space-y-1">
-            <h2 className="text-4xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">
+            <h2 className="text-4xl font-black text-gray-900 dark:text-white uppercase tracking-tighter italic">
               ¡HOLA, {user.username}!
             </h2>
-            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Es un gran día para mover esos chorizos</p>
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] italic">"El secreto del éxito está en la constancia del propósito"</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto px-4">
           {user.role === 'vendedor' ? (
-            <div 
-              onClick={() => onViewChange?.('Ventas y Rutas')}
-              className="bg-white dark:bg-gray-900 p-8 rounded-3xl border-2 border-transparent hover:border-blue-500 shadow-lg text-center space-y-4 group hover:scale-[1.02] transition-all cursor-pointer">
-              <div className="size-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                <Truck className="h-8 w-8" />
+            <>
+              <div onClick={() => onViewChange?.('Ventas y Rutas')}
+                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-blue-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
+                <div className="size-20 bg-blue-100 dark:bg-blue-900/30 rounded-3xl flex items-center justify-center mx-auto text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all transform group-hover:rotate-12">
+                  <Truck size={40} />
+                </div>
+                <h3 className="font-black text-2xl text-gray-900 dark:text-white uppercase italic">MI RUTA</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Registrar salidas y ventas</p>
               </div>
-              <h3 className="font-black text-xl text-gray-900 dark:text-white uppercase">INICIAR MI RUTA</h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wide">Carga tu mercancía y sal a vender</p>
-            </div>
+              <div onClick={() => onViewChange?.('Cartera')}
+                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-orange-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
+                <div className="size-20 bg-orange-100 dark:bg-orange-900/30 rounded-3xl flex items-center justify-center mx-auto text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-all transform group-hover:-rotate-12">
+                  <Clock size={40} />
+                </div>
+                <h3 className="font-black text-2xl text-gray-900 dark:text-white uppercase italic">COBROS</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Gestionar cartera de clientes</p>
+              </div>
+            </>
           ) : (
-            <div 
-              onClick={() => onViewChange?.('Producción')}
-              className="bg-white dark:bg-gray-900 p-8 rounded-3xl border-2 border-transparent hover:border-amber-500 shadow-lg text-center space-y-4 group hover:scale-[1.02] transition-all cursor-pointer">
-              <div className="size-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center mx-auto text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-all">
-                <Play className="h-8 w-8" />
+             <>
+              <div onClick={() => onViewChange?.('Producción')}
+                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-amber-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
+                <div className="size-20 bg-amber-100 dark:bg-amber-900/30 rounded-3xl flex items-center justify-center mx-auto text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-all transform group-hover:scale-110">
+                  <Play size={40} />
+                </div>
+                <h3 className="font-black text-2xl text-gray-900 dark:text-white uppercase italic">PRODUCIR</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Iniciar nuevo lote hoy</p>
               </div>
-              <h3 className="font-black text-xl text-gray-900 dark:text-white uppercase">NUEVO LOTE</h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wide">Inicia la producción de hoy</p>
-            </div>
+              <div onClick={() => onViewChange?.('Materia Prima')}
+                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-blue-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
+                <div className="size-20 bg-blue-100 dark:bg-blue-900/30 rounded-3xl flex items-center justify-center mx-auto text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <Package size={40} />
+                </div>
+                <h3 className="font-black text-2xl text-gray-900 dark:text-white uppercase italic">INSUMOS</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Ver existencias actuales</p>
+              </div>
+             </>
           )}
-          
-          <div 
-            onClick={() => onViewChange?.(user.role === 'vendedor' ? 'Liquidación' : 'Producto Terminado')}
-            className="bg-white dark:bg-gray-900 p-8 rounded-3xl border-2 border-transparent hover:border-green-500 shadow-lg text-center space-y-4 group hover:scale-[1.02] transition-all cursor-pointer">
-            <div className="size-16 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center mx-auto text-green-600 group-hover:bg-green-600 group-hover:text-white transition-all">
-              <Clock className="h-8 w-8" />
-            </div>
-            <h3 className="font-black text-xl text-gray-900 dark:text-white uppercase">
-              {user.role === 'vendedor' ? 'LIQUIDAR DÍA' : 'INVENTARIO'}
-            </h3>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wide">Revisa tus registros del día</p>
-          </div>
         </div>
       </div>
     );
   }
 
+  // Render para Administrador
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Panel de Control</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Resumen operativo para el administrador</p>
+    <div className="space-y-8">
+      <div className="flex justify-between items-end">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">Administración General</h2>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[3px]">Resumen Operativo en Tiempo Real</p>
+        </div>
+        <div className="hidden md:flex gap-2">
+           <div className="bg-emerald-100 dark:bg-emerald-900/20 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase italic">Sistema Online</div>
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {STATS.map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-2.5 ${stat.bg} dark:bg-opacity-10 rounded-xl`}>
-                <stat.icon className={`h-5 w-5 ${stat.color}`} />
-              </div>
-              <div className={`flex items-center gap-1 text-xs font-bold ${stat.tendency === 'up' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {stat.change}
-                {stat.tendency === 'up' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-              </div>
+      {/* Dynamic Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Unidades Vendidas', val: metasGlobales.ventas.toLocaleString(), icon: Package, col: 'blue' },
+          { label: 'Cartera Total', val: `$${totalCartera.toLocaleString('es-CO')}`, icon: DollarSign, col: 'emerald' },
+          { label: 'Stock Central', val: `${stockTotal} und`, icon: Activity, col: 'amber' },
+          { label: 'Clientes Deuda', val: metasGlobales.cobros, icon: Users, col: 'purple' },
+        ].map((s, i) => (
+          <div key={i} className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm transition-transform hover:-translate-y-1">
+            <div className={`size-12 rounded-2xl bg-${s.col}-50 dark:bg-${s.col}-900/20 flex items-center justify-center text-${s.col}-600 mb-4`}>
+              <s.icon size={24} />
             </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">{stat.label}</p>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</h3>
-            </div>
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">{s.label}</p>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white italic">{s.val}</h3>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sales Chart (CSS Mockup because we want premium look without heavy libs first) */}
-        <div className="lg:col-span-2 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="font-bold text-gray-900 dark:text-white">Ventas por Producto</h3>
-            <select className="text-xs bg-gray-50 dark:bg-gray-800 border-none rounded-lg px-3 py-1.5 outline-none">
-              <option>Últimos 7 días</option>
-              <option>Este mes</option>
-            </select>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Monitoreo en Vivo Real */}
+        <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-[40px] border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden min-h-[400px]">
+          <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+            <h3 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter flex items-center gap-2">
+              <Activity className="h-5 w-5 text-red-500 animate-pulse" /> Operaciones en Curso
+            </h3>
+            <span className="text-[10px] font-black text-gray-400 uppercase">{activosProd.length + activosRuta.length} Activos</span>
           </div>
           
-          <div className="space-y-5">
-            {SALES_BY_PRODUCT.map((product) => {
-              const maxSales = 500;
-              const percentage = (product.sales / maxSales) * 100;
-              return (
-                <div key={product.name} className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">{product.name}</span>
-                    <span className="font-bold text-gray-900 dark:text-white">{product.sales} und</span>
-                  </div>
-                  <div className="w-full bg-gray-100 dark:bg-gray-800 h-3 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${product.color} rounded-full transition-all duration-1000 ease-out`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+             {/* Produccion en vivo */}
+             <div className="space-y-4">
+               <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 italic">Planta de Producción</h4>
+               {activosProd.map((l, i) => (
+                 <div key={'p'+i} className="bg-amber-50 dark:bg-amber-900/10 p-5 rounded-3xl border border-amber-100 dark:border-amber-900/30 flex justify-between items-center group hover:bg-amber-100 transition-all">
+                   <div className="flex gap-4 items-center">
+                     <div className="size-10 bg-amber-200 rounded-xl flex items-center justify-center text-amber-700 animate-spin-slow"><Package size={20} /></div>
+                     <div>
+                       <p className="font-black text-gray-900 dark:text-white uppercase italic text-sm leading-none">{l.producto}</p>
+                       <p className="text-[10px] text-amber-600 font-bold uppercase">{l.operario}</p>
+                     </div>
+                   </div>
+                   <div className="text-right">
+                     <p className="text-xs font-black text-amber-700">LOTE #{l.id_lote?.slice(-4)}</p>
+                   </div>
+                 </div>
+               ))}
+               {activosProd.length === 0 && <p className="text-xs text-center py-10 text-gray-300 font-bold uppercase border-2 border-dashed border-gray-50 dark:border-gray-800 rounded-3xl italic">Planta en Silencio</p>}
+             </div>
+
+             {/* Ventas en vivo */}
+             <div className="space-y-4">
+               <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 italic">Fuerza de Ventas (Rutas)</h4>
+               {activosRuta.map((r, i) => (
+                 <div key={'r'+i} className="bg-blue-50 dark:bg-blue-900/10 p-5 rounded-3xl border border-blue-100 dark:border-blue-900/30 flex justify-between items-center">
+                   <div className="flex gap-4 items-center">
+                     <div className="size-10 bg-blue-200 rounded-xl flex items-center justify-center text-blue-700 animate-bounce"><Truck size={20} /></div>
+                     <div>
+                       <p className="font-black text-gray-900 dark:text-white uppercase italic text-sm leading-none">{r.vendedor}</p>
+                       <p className="text-[10px] text-blue-600 font-bold uppercase">{r.ruta}</p>
+                     </div>
+                   </div>
+                   <div className="text-right font-black text-lg text-blue-800 italic">{r.cantidad_salida}</div>
+                 </div>
+               ))}
+               {activosRuta.length === 0 && <p className="text-xs text-center py-10 text-gray-300 font-bold uppercase border-2 border-dashed border-gray-50 dark:border-gray-800 rounded-3xl italic">Sin Vendedores en Ruta</p>}
+             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
-          {/* Operaciones en Tiempo Real */}
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm border-t-4 border-t-amber-500">
-            <h3 className="font-black text-gray-900 dark:text-white uppercase tracking-tighter flex items-center gap-2 mb-4">
-               <Activity className="h-5 w-5 text-amber-500" /> Monitoreo en Vivo
-            </h3>
-            
-            <div className="space-y-3">
-               {activosProd.map((l, i) => (
-                 <div key={'p'+i} className="flex justify-between items-center p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
-                    <div className="flex gap-3 items-center">
-                       <Play className="h-4 w-4 text-amber-500 animate-pulse" />
-                       <div>
-                          <p className="text-xs font-black uppercase tracking-tight text-gray-900 dark:text-gray-100">{l.producto}</p>
-                          <p className="text-[10px] uppercase text-gray-500">Prod: {l.operario}</p>
-                       </div>
-                    </div>
-                    <span className="text-[10px] font-black bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full uppercase">Progreso</span>
-                 </div>
-               ))}
-               {activosRuta.map((r, i) => (
-                 <div key={'r'+i} className="flex justify-between items-center p-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
-                    <div className="flex gap-3 items-center">
-                       <Truck className="h-4 w-4 text-blue-500 animate-bounce" />
-                       <div>
-                          <p className="text-xs font-black uppercase tracking-tight text-gray-900 dark:text-gray-100">{r.vendedor}</p>
-                          <p className="text-[10px] uppercase text-gray-500">{r.producto}</p>
-                       </div>
-                    </div>
-                    <span className="text-[10px] font-black bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full uppercase">En Ruta</span>
-                 </div>
-               ))}
-               {(activosProd.length === 0 && activosRuta.length === 0) && (
-                 <p className="text-xs text-gray-400 text-center py-4 font-bold uppercase tracking-widest">Sin actividad actual</p>
-               )}
+        {/* Proximos Cobros / Cartera */}
+        <div className="bg-gray-900 rounded-[40px] text-white p-8 space-y-8 flex flex-col justify-between shadow-2xl">
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-black uppercase italic italic tracking-tighter">Cartera Morosa</h3>
+              <DollarSign className="text-emerald-400 animate-bounce" />
             </div>
-          </div>
-
-          {/* Recent Activity / Credits */}
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm border-t-4 border-t-blue-500">
-            <h3 className="font-bold text-gray-900 dark:text-white uppercase tracking-tighter mb-4">Próximos Cobros</h3>
-            <div className="space-y-4">
-              {creditos.filter(c => c.estado !== 'Pagado').slice(0, 4).map((item, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase">{item.cliente}</span>
-                    <span className="text-[10px] text-gray-500 font-bold tracking-widest">{item.fecha_cobro}</span>
+            
+            <div className="space-y-6">
+              {creditos.filter(c => c.estado !== 'Pagado').slice(0, 4).map((c, i) => (
+                <div key={i} className="flex justify-between items-center group">
+                  <div className="space-y-1">
+                    <p className="font-black text-sm uppercase italic group-hover:text-emerald-400 transition-colors">{c.cliente}</p>
+                    <p className="text-[9px] text-gray-500 font-bold tracking-widest">VENCE: {c.fecha_cobro}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-gray-900 dark:text-white">${Number(item.monto_deuda).toLocaleString('es-CO')}</p>
+                  <div className="text-right font-black italic text-lg text-emerald-400">
+                    ${Number(c.monto_deuda).toLocaleString('es-CO')}
                   </div>
                 </div>
               ))}
               {creditos.filter(c => c.estado !== 'Pagado').length === 0 && (
-                 <p className="text-xs text-gray-400 text-center py-2 font-bold uppercase tracking-widest">Sin deudas pendientes</p>
+                <div className="text-center space-y-2 py-10 opacity-30">
+                  <Users className="mx-auto" />
+                  <p className="text-[10px] font-black uppercase">Sin cobros pendientes</p>
+                </div>
               )}
             </div>
-            <button onClick={() => onViewChange?.('Cartera')} className="w-full mt-4 py-2.5 text-xs font-black uppercase text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">
-              Ver Cartera Completa
-            </button>
           </div>
+
+          <button onClick={() => onViewChange?.('Cartera')} className="w-full bg-white text-gray-900 py-4 rounded-3xl font-black uppercase text-xs hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 group">
+            Gestionar Todo <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
       </div>
     </div>

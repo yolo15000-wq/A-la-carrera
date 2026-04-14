@@ -1,12 +1,16 @@
 import { useContext, useState } from "react";
-import { Plus, AlertTriangle, Package } from "lucide-react";
+import { Plus, AlertTriangle, Package, TrendingUp } from "lucide-react";
 import { STOCK_MINIMOS } from "../data/datos";
 import { InventarioContext } from "../context/InventarioContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function MateriaPrimaView() {
+  const { user } = useAuth();
   const { insumos, agregarInsumo } = useContext(InventarioContext);
   const [showModal, setShowModal] = useState(false);
   const [compra, setCompra] = useState({ codigo: '', cantidad: 0 });
+
+  const isAdmin = user?.role === 'admin';
 
   const registrarCompra = () => {
     if (!compra.codigo || compra.cantidad <= 0) return;
@@ -21,108 +25,117 @@ export default function MateriaPrimaView() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {alertas.length > 0
-              ? <span className="text-red-600 font-medium">⚠ {alertas.length} insumo(s) bajo el mínimo</span>
-              : '✓ Todos los insumos dentro del rango'}
-          </p>
+    <div className="space-y-8">
+      {/* Dynamic Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white dark:bg-gray-900 p-8 rounded-[40px] border border-gray-100 dark:border-gray-800 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-5">
+          <TrendingUp size={120} />
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow transition-colors">
-          <Plus className="h-4 w-4" /> Registrar Compra
-        </button>
+        <div className="relative z-10">
+          <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">Inventario de Planta</h2>
+          <div className="flex items-center gap-3 mt-2">
+            {alertas.length > 0 ? (
+               <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-black uppercase italic animate-pulse">
+                 <AlertTriangle size={12} /> {alertas.length} Insumos Críticos
+               </div>
+            ) : (
+               <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-black uppercase italic">
+                 Sistema Abastecido
+               </div>
+            )}
+          </div>
+        </div>
+        
+        {isAdmin && (
+          <button onClick={() => setShowModal(true)}
+            className="relative z-10 flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
+            <Plus className="h-5 w-5" /> Abastecer Almacén
+          </button>
+        )}
       </div>
 
       {/* Grid de tarjetas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {insumos.map(item => {
           const min = STOCK_MINIMOS[item.insumo] ?? 0;
           const pct = min > 0 ? Math.min((item.existencia / min) * 100, 100) : 100;
           const critico = min > 0 && item.existencia < min;
           return (
             <div key={item.codigo}
-              className={`bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-4 transition-all hover:shadow-md ${
-                critico ? 'border-red-300 dark:border-red-800' : 'border-gray-200 dark:border-gray-800'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-md font-mono ${
-                  critico ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
-                  {item.codigo}
-                </span>
-                {critico && <AlertTriangle className="h-4 w-4 text-red-500" />}
-                {!critico && <Package className="h-4 w-4 text-blue-400" />}
+              className={`bg-white dark:bg-gray-900 rounded-[35px] border p-6 transition-all group ${
+                critico ? 'border-red-300 dark:border-red-800 shadow-xl shadow-red-500/5' : 'border-gray-100 dark:border-gray-800 hover:border-blue-500 shadow-sm'}`}>
+              
+              <div className="flex items-center justify-between mb-6">
+                <div className={`size-12 rounded-2xl flex items-center justify-center ${critico ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
+                  {critico ? <AlertTriangle size={24} /> : <Package size={24} />}
+                </div>
+                <span className="text-[10px] font-black text-gray-300 uppercase italic">COD: {item.codigo}</span>
               </div>
-              <h4 className="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-1">{item.insumo}</h4>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {item.existencia.toLocaleString('es-CO')}
-                <span className="text-sm font-normal text-gray-500 ml-1">{item.unidad}</span>
-              </p>
+
+              <div className="space-y-1 mb-6">
+                <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tight">{item.insumo}</h4>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none">Categoría: Materia Prima</p>
+              </div>
+
+              <div className="flex items-baseline gap-2 mb-6">
+                <p className="text-4xl font-black text-gray-900 dark:text-white italic tracking-tighter">
+                  {item.existencia.toLocaleString('es-CO')}
+                </p>
+                <span className="text-xs font-black text-gray-400 uppercase italic">{item.unidad}</span>
+              </div>
+
               {min > 0 && (
-                <>
-                  <div className="mt-3 w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                <div className="space-y-2">
+                  <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${critico ? 'bg-red-500' : pct < 70 ? 'bg-yellow-400' : 'bg-green-500'}`}
+                      className={`h-full rounded-full transition-all duration-700 ${critico ? 'bg-red-500' : pct < 50 ? 'bg-amber-400' : 'bg-emerald-500'}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1.5">Mín. {min.toLocaleString('es-CO')} {item.unidad} · {Math.round(pct)}%</p>
-                </>
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase text-gray-400 tracking-tighter">
+                    <span>Mín: {min.toLocaleString('es-CO')}</span>
+                    <span className={critico ? 'text-red-600' : ''}>{Math.round(pct)}%</span>
+                  </div>
+                </div>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Modal compra */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Registrar Compra de Insumo</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Insumo</label>
-                <select value={compra.codigo} onChange={e => setCompra(p => ({ ...p, codigo: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 outline-none">
-                  <option value="">-- Seleccionar insumo --</option>
-                  {insumos.map(i => (
-                    <option key={i.codigo} value={i.codigo}>
-                      {i.insumo} (actual: {i.existencia.toLocaleString('es-CO')} {i.unidad})
-                    </option>
-                  ))}
-                </select>
+      {/* Modal compra (Admin Only) */}
+      {showModal && isAdmin && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden scale-in-center">
+            <div className="p-10 space-y-8">
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter">Entrada de Insumos</h2>
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Seleccionar Insumo</label>
+                  <select value={compra.codigo} onChange={e => setCompra(p => ({ ...p, codigo: e.target.value }))}
+                    className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-5 outline-none font-black text-lg uppercase appearance-none">
+                    <option value="">-- Buscar --</option>
+                    {insumos.map(i => (
+                      <option key={i.codigo} value={i.codigo}>
+                        {i.insumo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Cantidad a Ingresar</label>
+                  <input type="number" value={compra.cantidad || ''}
+                    onChange={e => setCompra(p => ({ ...p, cantidad: parseInt(e.target.value) || 0 }))}
+                    placeholder="0.00"
+                    className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-5 outline-none font-black text-3xl text-center text-emerald-600" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Cantidad a agregar ({insumos.find(i => i.codigo === compra.codigo)?.unidad ?? 'unidad'})
-                </label>
-                <input type="number" min={1} value={compra.cantidad}
-                  onChange={e => setCompra(p => ({ ...p, cantidad: parseInt(e.target.value) || 0 }))}
-                  className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 outline-none" />
-              </div>
-              {compra.codigo && compra.cantidad > 0 && (() => {
-                const ins = insumos.find(i => i.codigo === compra.codigo);
-                return ins ? (
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 text-sm text-green-700 dark:text-green-300">
-                    Nuevo stock: <strong>{(ins.existencia + compra.cantidad).toLocaleString('es-CO')} {ins.unidad}</strong>
-                  </div>
-                ) : null;
-              })()}
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex gap-3 justify-end">
-              <button onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                Cancelar
-              </button>
+              
               <button onClick={registrarCompra} disabled={!compra.codigo || compra.cantidad <= 0}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                <Plus className="h-4 w-4" /> Agregar al Stock
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-100 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-emerald-500/30 transition-all active:scale-95">
+                GUARDAR EN INVENTARIO
               </button>
+              <button onClick={() => setShowModal(false)} className="w-full text-gray-400 font-bold uppercase text-[10px] tracking-widest">Cancelar Operación</button>
             </div>
           </div>
         </div>

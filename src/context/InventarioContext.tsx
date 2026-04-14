@@ -170,15 +170,18 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const descontarProductoTerminado = useCallback((id: string, cantidad: number) => {
-    setProductosTerminados(prev => prev.map(p => {
-      if (p.id === id) {
-        const nuevoStock = Math.max(0, p.stock - cantidad);
-        googleSheetsService.updateRow('ProductosTerminados', 'id', p.id, { stock: nuevoStock });
-        return { ...p, stock: nuevoStock };
-      }
-      return p;
-    }));
+  const descontarProductoTerminado = useCallback((idOrName: string, cantidad: number) => {
+    setProductosTerminados(prev => {
+      const cleanSearch = idOrName.toLowerCase().trim();
+      const index = prev.findIndex(p => p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase().includes(cleanSearch) || cleanSearch.includes(p.nombre.toLowerCase()));
+      if (index === -1) return prev;
+      const nuevoState = [...prev];
+      const producto = nuevoState[index];
+      const nuevoStock = Math.max(0, producto.stock - cantidad);
+      nuevoState[index] = { ...producto, stock: nuevoStock };
+      googleSheetsService.updateRow('ProductosTerminados', 'id', producto.id, { stock: nuevoStock });
+      return nuevoState;
+    });
   }, []);
 
   const registrarCredito = useCallback((nuevo: Credito) => {
