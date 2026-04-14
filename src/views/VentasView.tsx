@@ -1,7 +1,7 @@
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useMemo } from "react";
 import {
-  Plus, Truck, RotateCcw, DollarSign, CreditCard,
-  PackageCheck, ClipboardList, CheckCircle2, Trash2, ShoppingBag
+  Plus, Truck, DollarSign, CreditCard, PackageCheck,
+  Trash2, ShoppingBag, UserCheck, AlertCircle, CheckCircle2, Loader2
 } from "lucide-react";
 import { VENDEDORES } from "../data/datos";
 import { InventarioContext } from "../context/InventarioContext";
@@ -10,9 +10,9 @@ import { googleSheetsService } from "../services/googleSheetsService";
 import { useAuth } from "../context/AuthContext";
 import { useCatalogos } from "../context/CatalogosContext";
 
-// ── Tipos ─────────────────────────────────────────────────────────────────
+// ── Tipos ──────────────────────────────────────────────────────────────────
 interface SalidaRuta {
-  id: number;
+  id: string | number;
   fecha: string;
   vendedor: string;
   ruta: string;
@@ -21,243 +21,222 @@ interface SalidaRuta {
   estado: 'En Ruta' | 'Liquidado';
 }
 
-interface LiquidacionRuta {
-  id: number;
-  salida_id: number;
-  fecha: string;
-  vendedor: string;
-  ruta: string;
-  producto: string;
-  cantidad_salida: number;
-  cantidad_venta: number;
-  cantidad_devolucion: number;
-  tipo_pago: 'Contado' | 'Crédito';
-  cliente?: string;
-  telefono?: string;
-  direccion?: string;
-  fecha_cobro?: string;
-}
+interface ItemSalida { producto: string; cantidad: number; }
 
-interface ItemSalida {
-  producto: string;
-  cantidad: number;
+// Un cliente al que se dejó a crédito dentro de una liquidación
+interface CreditoItem {
+  clienteNombre: string;
+  telefono: string;
+  direccion: string;
+  fecha_cobro: string;
+  cantidad: number; // unidades a crédito para este cliente
 }
 
 export default function VentasView() {
-  const { user } = useAuth();
-  const { products, rutas } = useCatalogos();
+  const { user }  = useAuth();
+  const { products, rutas }  = useCatalogos();
   const { descontarProductoTerminado, agregarProductoTerminado, registrarCredito } = useContext(InventarioContext);
   const { clientes, agregarCliente } = useClientes();
-  const [activeTab, setActiveTab] = useState<'salidas' | 'liquidacion'>('salidas');
-  const [searchTermCliente, setSearchTermCliente] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  
-  const [salidas, setSalidas] = useState<SalidaRuta[]>([]);
-  const [liquidaciones, setLiquidaciones] = useState<LiquidacionRuta[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadVentas() {
-      try {
-        const [s, l] = await Promise.all([
-          googleSheetsService.getSheetData<SalidaRuta>('Ventas'),
-          googleSheetsService.getSheetData<LiquidacionRuta>('Liquidacion')
-        ]);
-        if (s) setSalidas(s);
-        if (l) setLiquidaciones(l);
-      } catch (err) {
-        console.error("Error cargando ventas:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadVentas();
-  }, []);
-
-  // Modales
-  const [showSalidaModal, setShowSalidaModal] = useState(false);
-  const [showLiqModal, setShowLiqModal] = useState(false);
-  const [salidaSeleccionada, setSalidaSeleccionada] = useState<SalidaRuta | null>(null);
-
-  // Formulario salida MULTIPRODUCTO
-  const [formSalida, setFormSalida] = useState({
-    ruta: '', vendedor: '', items: [] as ItemSalida[]
-  });
-  const [tempItem, setTempItem] = useState<ItemSalida>({ producto: '', cantidad: 0 });
-
-  const agregarItemABasket = () => {
-    if (!tempItem.producto || tempItem.cantidad <= 0) return;
-    setFormSalida(prev => ({
-      ...prev,
-      items: [...prev.items, tempItem]
-    }));
-    setTempItem({ producto: '', cantidad: 0 });
-  };
-
-  // Formulario liquidación
-  const [formLiq, setFormLiq] = useState({
-    cantidad_venta: 0, cantidad_devolucion: 0,
-    tipo_pago: 'Contado' as 'Contado' | 'Crédito',
-    cliente: '', telefono: '', direccion: '', fecha_cobro: '',
-  });
-
+  const [activeTab, setActiveTab]   = useState<'salidas' | 'historial'>('salidas');
+  const [salidas, setSalidas]        = useState<SalidaRuta[]>([]);
+  const [historial, setHistorial]    = useState<any[]>([]);
+  const [isLoading, setIsLoading]    = useState(true);
+  const [saving, setSaving]          = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
-  const registrarSalidaMultiproducto = async () => {
-    if (!user || formSalida.items.length === 0) return;
-    
-    const vendedorElegido = user.role === 'admin' ? formSalida.vendedor : user.username;
-    if (!vendedorElegido) return alert("Selecciona vendedor");
+  // ── Formulario salida multiproducto ─────────────────────────────────────
+  const [showSalidaModal, setShowSalidaModal] = useState(false);
+  const [formSalida, setFormSalida] = useState({ ruta: '', vendedor: '', items: [] as ItemSalida[] });
+  const [tempItem, setTempItem]     = useState<ItemSalida>({ producto: '', cantidad: 0 });
 
-    const batchId = Date.now();
-    const nuevasSalidas: SalidaRuta[] = [];
+  // ── Formulario liquidación ────────────────────────────────────────────────
+  const [showLiqModal, setShowLiqModal] = useState(false);
+  const [salidaActual, setSalidaActual] = useState<SalidaRuta | null>(null);
+  const [devolucion, setDevolucion]     = useState(0);
+  const [cantidadContado, setCantidadContado] = useState(0);
+  const [creditosItems, setCreditosItems]     = useState<CreditoItem[]>([]);
 
-    for (const item of formSalida.items) {
-      const nueva: SalidaRuta = {
-        id: batchId + Math.random(),
-        fecha: new Date().toLocaleDateString('es-CO'),
-        vendedor: vendedorElegido,
-        ruta: formSalida.ruta,
-        producto: item.producto,
-        cantidad_salida: item.cantidad,
-        estado: 'En Ruta',
-      };
-      
-      await descontarProductoTerminado(item.producto, item.cantidad);
-      await googleSheetsService.appendRow('Ventas', nueva);
-      nuevasSalidas.push(nueva);
+  // Nuevo crédito temporal
+  const [nuevoCredito, setNuevoCredito] = useState<CreditoItem>({
+    clienteNombre: '', telefono: '', direccion: '', fecha_cobro: '', cantidad: 0
+  });
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [showClienteSugg, setShowClienteSugg] = useState(false);
+
+  // Cálculos del modal de liquidación
+  const totalLlevado   = salidaActual?.cantidad_salida ?? 0;
+  const totalCredito   = creditosItems.reduce((s, c) => s + c.cantidad, 0);
+  const totalVendido   = cantidadContado + totalCredito;
+  const saldo          = totalLlevado - devolucion - totalVendido;
+  const formularioOk   = saldo === 0 && totalVendido > 0;
+
+  // ── Carga de datos ───────────────────────────────────────────────────────
+  useEffect(() => {
+    async function load() {
+      try {
+        const [s, h] = await Promise.all([
+          googleSheetsService.getSheetData<SalidaRuta>('Ventas'),
+          googleSheetsService.getSheetData<any>('Liquidacion'),
+        ]);
+        if (s) setSalidas(s);
+        if (h) setHistorial(h);
+      } catch (e) { console.error("Error cargando ventas:", e); }
+      finally { setIsLoading(false); }
     }
-    
-    setSalidas(prev => [...nuevasSalidas, ...prev]);
+    load();
+  }, []);
+
+  const salidasFiltradas = useMemo(() =>
+    user?.role === 'vendedor'
+      ? salidas.filter(s => s.vendedor === user.username)
+      : salidas,
+    [salidas, user]
+  );
+  const historialFiltrado = useMemo(() =>
+    user?.role === 'vendedor'
+      ? historial.filter(h => h.vendedor === user.username)
+      : historial,
+    [historial, user]
+  );
+
+  // ── Registrar salida multiproducto ───────────────────────────────────────
+  const registrarSalida = async () => {
+    if (!formSalida.ruta || formSalida.items.length === 0) return;
+    const vendedor = user?.role === 'admin' ? formSalida.vendedor : user?.username ?? '';
+    if (!vendedor) return alert("Selecciona un vendedor");
+    setSaving(true);
+    const nuevas: SalidaRuta[] = [];
+    for (const item of formSalida.items) {
+      const salida: SalidaRuta = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+        fecha: new Date().toLocaleDateString('es-CO'),
+        vendedor, ruta: formSalida.ruta, producto: item.producto,
+        cantidad_salida: item.cantidad, estado: 'En Ruta',
+      };
+      await descontarProductoTerminado(item.producto, item.cantidad);
+      await googleSheetsService.appendRow('Ventas', salida);
+      nuevas.push(salida);
+    }
+    setSalidas(prev => [...nuevas, ...prev]);
     setShowSalidaModal(false);
     setFormSalida({ ruta: '', vendedor: '', items: [] });
-    setMensajeExito(`Carga exitosa: ${nuevasSalidas.length} productos en ruta`);
-    setTimeout(() => setMensajeExito(null), 5000);
+    setSaving(false);
+    setMensajeExito(`✅ ${nuevas.length} productos enviados a ruta`);
+    setTimeout(() => setMensajeExito(null), 4000);
   };
 
-  const abrirLiquidacion = (salida: SalidaRuta) => {
-    setSalidaSeleccionada(salida);
-    setFormLiq({
-      cantidad_venta: salida.cantidad_salida,
-      cantidad_devolucion: 0,
-      tipo_pago: 'Contado',
-      cliente: '', telefono: '', direccion: '', fecha_cobro: '',
-    });
+  // ── Abrir modal liquidación ──────────────────────────────────────────────
+  const abrirLiq = (salida: SalidaRuta) => {
+    setSalidaActual(salida);
+    setDevolucion(0);
+    setCantidadContado(0);
+    setCreditosItems([]);
+    setNuevoCredito({ clienteNombre: '', telefono: '', direccion: '', fecha_cobro: '', cantidad: 0 });
     setShowLiqModal(true);
   };
 
+  // ── Agregar crédito a la lista ───────────────────────────────────────────
+  const agregarCreditoItem = () => {
+    if (!nuevoCredito.clienteNombre.trim() || nuevoCredito.cantidad <= 0) return;
+    setCreditosItems(prev => [...prev, nuevoCredito]);
+    setNuevoCredito({ clienteNombre: '', telefono: '', direccion: '', fecha_cobro: '', cantidad: 0 });
+    setClienteSearch('');
+  };
+
+  // ── Registrar liquidación completa ───────────────────────────────────────
   const registrarLiquidacion = async () => {
-    if (!salidaSeleccionada) return;
-    const qVenta = formLiq.cantidad_venta;
-    const qDevol = formLiq.cantidad_devolucion;
-    const qTotalLiq = qVenta + qDevol;
+    if (!salidaActual || !formularioOk) return;
+    setSaving(true);
+    const fecha = new Date().toLocaleDateString('es-CO');
+    const base = { salida_id: salidaActual.id, fecha, vendedor: salidaActual.vendedor, ruta: salidaActual.ruta, producto: salidaActual.producto, cantidad_salida: salidaActual.cantidad_salida };
 
-    if (qTotalLiq <= 0 || qTotalLiq > salidaSeleccionada.cantidad_salida) return alert("Cantidad inválida");
+    // 1. Registrar venta de contado
+    if (cantidadContado > 0) {
+      const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, cantidad_devolucion: 0 };
+      await googleSheetsService.appendRow('Liquidacion', liqContado);
+      setHistorial(prev => [liqContado, ...prev]);
+    }
 
-    const nueva: LiquidacionRuta = {
-      id: Date.now(),
-      salida_id: salidaSeleccionada.id,
-      fecha: new Date().toLocaleDateString('es-CO'),
-      vendedor: salidaSeleccionada.vendedor,
-      ruta: salidaSeleccionada.ruta,
-      producto: salidaSeleccionada.producto,
-      cantidad_salida: salidaSeleccionada.cantidad_salida,
-      cantidad_venta: qVenta,
-      cantidad_devolucion: qDevol,
-      tipo_pago: formLiq.tipo_pago,
-      ...(formLiq.tipo_pago === 'Crédito' ? {
-        cliente: formLiq.cliente, telefono: formLiq.telefono, direccion: formLiq.direccion, fecha_cobro: formLiq.fecha_cobro,
-      } : {}),
-    };
+    // 2. Registrar cada venta a crédito
+    for (const cr of creditosItems) {
+      const liqCred = { ...base, id: `LIQ-${Date.now()}-CR-${cr.clienteNombre}`, tipo_pago: 'Crédito', cantidad_venta: cr.cantidad, cantidad_devolucion: 0, cliente: cr.clienteNombre, telefono: cr.telefono, direccion: cr.direccion, fecha_cobro: cr.fecha_cobro };
+      await googleSheetsService.appendRow('Liquidacion', liqCred);
+      setHistorial(prev => [liqCred, ...prev]);
 
-    if (qDevol > 0) await agregarProductoTerminado(nueva.producto, qDevol);
-
-    if (nueva.tipo_pago === 'Crédito') {
+      // Registrar crédito en cartera
       await registrarCredito({
-        id_credito: `CRD-${Date.now()}`,
-        cliente: nueva.cliente || 'Desconocido',
-        vendedor: nueva.vendedor,
-        monto_deuda: qVenta,
-        fecha_cobro: nueva.fecha_cobro || '',
-        estado: 'Pendiente',
-        telefono: nueva.telefono || '',
-        direccion: nueva.direccion || '',
-        fecha_registro: nueva.fecha
+        id_credito: `CRD-${Date.now()}-${cr.clienteNombre}`,
+        cliente: cr.clienteNombre, vendedor: salidaActual.vendedor,
+        monto_deuda: cr.cantidad,  // en unidades — ajusta si manejas precios
+        fecha_cobro: cr.fecha_cobro, estado: 'Pendiente',
+        telefono: cr.telefono, direccion: cr.direccion, fecha_registro: fecha,
       });
-      // Auto-registrar cliente
-      const existeCl = clientes.find(c => c.nombre.toLowerCase() === (nueva.cliente || "").toLowerCase());
-      if (!existeCl && nueva.cliente) {
-        await agregarCliente({ nombre: nueva.cliente, telefono: nueva.telefono || '', direccion: nueva.direccion || '', ruta: nueva.ruta });
+
+      // Auto-registrar cliente si no existe
+      const existe = clientes.find(c => c.nombre.toLowerCase() === cr.clienteNombre.toLowerCase());
+      if (!existe) {
+        await agregarCliente({ nombre: cr.clienteNombre, telefono: cr.telefono, direccion: cr.direccion, ruta: salidaActual.ruta, vendedor: salidaActual.vendedor });
       }
     }
 
-    await googleSheetsService.appendRow('Liquidacion', nueva);
-    const isPartial = qTotalLiq < salidaSeleccionada.cantidad_salida;
-    const qRestante = salidaSeleccionada.cantidad_salida - qTotalLiq;
-
-    await googleSheetsService.updateRow('Ventas', 'id', salidaSeleccionada.id, { estado: 'Liquidado', cantidad_salida: qTotalLiq });
-
-    let nuevaRutaSaldo: any = null;
-    if (isPartial) {
-      nuevaRutaSaldo = { ...salidaSeleccionada, id: Date.now() + 5, cantidad_salida: qRestante, estado: 'En Ruta' };
-      await googleSheetsService.appendRow('Ventas', nuevaRutaSaldo);
+    // 3. Devolucion → reintegrar stock
+    if (devolucion > 0) {
+      await agregarProductoTerminado(salidaActual.producto, devolucion);
     }
 
-    setSalidas(prev => {
-      const updated = prev.map(s => s.id === salidaSeleccionada.id ? { ...s, estado: 'Liquidado' as const, cantidad_salida: qTotalLiq } : s);
-      return nuevaRutaSaldo ? [nuevaRutaSaldo, ...updated] : updated;
-    });
+    // 4. Marcar la salida como liquidada
+    await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { estado: 'Liquidado' });
+    setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, estado: 'Liquidado' as const } : s));
 
-    setLiquidaciones(prev => [nueva, ...prev]);
     setShowLiqModal(false);
-    setSalidaSeleccionada(null);
+    setSalidaActual(null);
+    setSaving(false);
+    setMensajeExito(`✅ Liquidación registrada — ${cantidadContado} contado · ${totalCredito} crédito · ${devolucion} devueltos`);
+    setTimeout(() => setMensajeExito(null), 5000);
   };
 
-  // ── Variables calculadas (DEBEN ir antes del return) ──────────────────────
-  const salidasFiltradas = user?.role === 'vendedor'
-    ? salidas.filter(s => s.vendedor === user.username)
-    : salidas;
-
-  const liquidacionesFiltradas = user?.role === 'vendedor'
-    ? liquidaciones.filter(l => l.vendedor === user.username)
-    : liquidaciones;
-
-  const totalVendidoHoy = liquidacionesFiltradas.reduce((a, l) => a + l.cantidad_venta, 0);
+  const sugerenciasCliente = clientes.filter(c =>
+    c.nombre.toLowerCase().includes(clienteSearch.toLowerCase()) && clienteSearch.length > 0
+    && (user?.role !== 'vendedor' || c.vendedor === user.username)
+  );
 
   return (
     <div className="space-y-8 pb-20">
-      {/* Header Estilizado */}
+      {/* Header */}
       <div className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
-           <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">Ventas en Ruta</h2>
-           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[3px] mt-1">{user?.username} · Operativo</p>
+          <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">Ventas en Ruta</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[3px] mt-1">{user?.username} · {salidasFiltradas.filter(s => s.estado === 'En Ruta').length} activas</p>
         </div>
-        <div className="flex gap-4">
-           <div className="text-right">
-              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Volumen Hoy</p>
-              <p className="text-3xl font-black text-blue-600 italic tracking-tighter">{totalVendidoHoy} <small className="text-xs">UND</small></p>
-           </div>
-           <div className="w-px h-12 bg-gray-100 mx-2" />
-           <button onClick={() => setShowSalidaModal(true)} className="bg-gray-900 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-2xl shadow-black/10 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
-             <Truck size={18} /> Iniciar Salida
-           </button>
-        </div>
+        <button onClick={() => setShowSalidaModal(true)}
+          className="bg-gray-900 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-2xl shadow-black/10 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+          <Truck size={18} /> Iniciar Salida
+        </button>
       </div>
 
+      {mensajeExito && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-6 py-4 rounded-2xl flex items-center gap-3 font-bold text-sm">
+          <CheckCircle2 size={20} /> {mensajeExito}
+        </div>
+      )}
+
+      {/* Tabs */}
       <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl w-fit">
-        {['salidas', 'liquidacion'].map((t) => (
-          <button key={t} onClick={() => setActiveTab(t as any)}
-            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-white dark:bg-gray-700 text-gray-900 shadow-sm' : 'text-gray-400'}`}>
-            {t === 'salidas' ? 'Rutas Activas' : 'Historial de Ventas'}
+        {[['salidas','Rutas Activas'],['historial','Historial']].map(([id, label]) => (
+          <button key={id} onClick={() => setActiveTab(id as any)}
+            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === id ? 'bg-white dark:bg-gray-700 text-gray-900 shadow-sm' : 'text-gray-400'}`}>
+            {label}
           </button>
         ))}
       </div>
 
+      {/* Contenido */}
       {isLoading ? <div className="p-20 text-center animate-pulse text-gray-300 font-black uppercase italic">Sincronizando...</div> : (
         activeTab === 'salidas' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom duration-500">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {salidasFiltradas.filter(s => s.estado === 'En Ruta').map(s => (
-              <div key={s.id} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-blue-500 transition-all group">
+              <div key={String(s.id)} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-blue-500 transition-all group">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <span className="text-[10px] font-black text-blue-600 uppercase tracking-[2px]">{s.ruta}</span>
@@ -266,42 +245,37 @@ export default function VentasView() {
                   <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all"><Truck size={20} /></div>
                 </div>
                 <div className="flex items-end justify-between mb-8">
-                   <div>
-                      <p className="text-[10px] text-gray-400 font-black uppercase mb-1">Carga Actual</p>
-                      <p className="text-4xl font-black text-gray-900 dark:text-white italic tracking-tighter">{s.cantidad_salida}</p>
-                   </div>
-                   <div className="text-right">
-                      <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Vendedor</p>
-                      <p className="text-xs font-black text-gray-700 uppercase">{s.vendedor}</p>
-                   </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-black uppercase mb-1">Carga</p>
+                    <p className="text-4xl font-black text-gray-900 dark:text-white italic tracking-tighter">{s.cantidad_salida} <small className="text-xs font-bold">UND</small></p>
+                  </div>
+                  <p className="text-xs font-black text-gray-500 uppercase">{s.vendedor}</p>
                 </div>
-                <button onClick={() => abrirLiquidacion(s)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
-                  <PackageCheck size={18} /> Liquidar Producto
+                <button onClick={() => abrirLiq(s)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                  <PackageCheck size={18} /> Liquidar
                 </button>
               </div>
             ))}
-            {salidasFiltradas.length === 0 && <div className="col-span-full py-20 text-center text-gray-300 font-black uppercase italic">No hay rutas activas</div>}
+            {salidasFiltradas.filter(s => s.estado === 'En Ruta').length === 0 && (
+              <div className="col-span-full py-20 text-center text-gray-300 font-black uppercase italic">No hay rutas activas</div>
+            )}
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-900 rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 uppercase font-black text-[9px] text-gray-400 tracking-[2px]">
-                  <tr>{['Fecha', 'Vendedor', 'Producto', 'Venta', 'Tipo', 'Cliente'].map(h => <th key={h} className="px-8 py-5">{h}</th>)}</tr>
+                  <tr>{['Fecha','Vendedor','Producto','Contado','Crédito','Cliente'].map(h => <th key={h} className="px-8 py-5">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {liquidacionesFiltradas.map(l => (
-                    <tr key={l.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-8 py-5 text-[10px] font-bold text-gray-400">{l.fecha}</td>
-                      <td className="px-8 py-5 font-black text-xs uppercase italic">{l.vendedor}</td>
-                      <td className="px-8 py-5 font-black text-gray-900 uppercase italic text-sm">{l.producto}</td>
-                      <td className="px-8 py-5 text-xl font-black text-blue-600 italic tracking-tighter">{l.cantidad_venta}</td>
-                      <td className="px-8 py-5">
-                        <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${l.tipo_pago === 'Contado' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>
-                          {l.tipo_pago}
-                        </span>
-                      </td>
-                      <td className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase">{l.cliente || '—'}</td>
+                  {historialFiltrado.map((l, i) => (
+                    <tr key={String(l.id ?? i)} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-8 py-4 text-[10px] font-bold text-gray-400">{l.fecha}</td>
+                      <td className="px-8 py-4 font-black text-xs uppercase italic">{l.vendedor}</td>
+                      <td className="px-8 py-4 font-black text-gray-900 uppercase italic">{l.producto}</td>
+                      <td className="px-8 py-4 text-xl font-black text-emerald-600 italic">{l.tipo_pago === 'Contado' ? l.cantidad_venta : '—'}</td>
+                      <td className="px-8 py-4 text-xl font-black text-orange-500 italic">{l.tipo_pago === 'Crédito' ? l.cantidad_venta : '—'}</td>
+                      <td className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase">{l.cliente ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -311,147 +285,220 @@ export default function VentasView() {
         )
       )}
 
-      {/* MODAL SALIDA MULTIPRODUCTO */}
+      {/* ═══ MODAL SALIDA MULTIPRODUCTO ════════════════════════════════════════ */}
       {showSalidaModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-[40px] w-full max-w-xl overflow-hidden shadow-2xl scale-in-center overflow-y-auto max-h-[90vh]">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] w-full max-w-xl shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="p-10 space-y-8">
-              <h2 className="text-2xl font-black uppercase italic tracking-tighter">Preparar Carga Multiproducto</h2>
-              
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter">Preparar Carga</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {user?.role === 'admin' && (
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Vendedor Asignado</label>
-                    <select value={formSalida.vendedor} onChange={e => setFormSalida(p => ({ ...p, vendedor: e.target.value }))}
-                      className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-bold uppercase italic shadow-inner">
+                    <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block">Vendedor</label>
+                    <select value={formSalida.vendedor} onChange={e => setFormSalida(p => ({...p, vendedor: e.target.value}))}
+                      className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-bold uppercase">
                       <option value="">-- Seleccionar --</option>
-                      {VENDEDORES.map(v => <option key={v} value={v}>{v}</option>)}
+                      {VENDEDORES.map(v => <option key={v}>{v}</option>)}
                     </select>
                   </div>
                 )}
-                <div className={user?.role === 'admin' ? '' : 'col-span-2'}>
-                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Ruta / Zona</label>
-                  <select value={formSalida.ruta} onChange={e => setFormSalida(p => ({ ...p, ruta: e.target.value }))}
-                    className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-bold uppercase italic shadow-inner">
-                    <option value="">-- Elegir Destino --</option>
-                    {rutas.map(r => <option key={r} value={r}>{r}</option>)}
+                <div className={user?.role === 'admin' ? '' : 'md:col-span-2'}>
+                  <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block">Zona / Ruta</label>
+                  <select value={formSalida.ruta} onChange={e => setFormSalida(p => ({...p, ruta: e.target.value}))}
+                    className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-bold uppercase">
+                    <option value="">-- Destino --</option>
+                    {rutas.map(r => <option key={r}>{r}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div className="p-8 bg-blue-50/50 rounded-[35px] space-y-6 border border-blue-100">
-                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">Añadir Productos al Camión</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <select value={tempItem.producto} onChange={e => setTempItem(p => ({ ...p, producto: e.target.value }))}
-                    className="p-5 bg-white rounded-2xl font-bold text-xs uppercase shadow-sm">
+              <div className="p-8 bg-blue-50/50 rounded-[35px] border border-blue-100 space-y-6">
+                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Añadir Productos</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <select value={tempItem.producto} onChange={e => setTempItem(p => ({...p, producto: e.target.value}))}
+                    className="p-4 bg-white rounded-2xl font-bold text-xs uppercase shadow-sm">
                     <option value="">-- Producto --</option>
-                    {products.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+                    {products.map(p => <option key={p.id} value={p.nombre}>{p.nombre} ({p.stock} disponibles)</option>)}
                   </select>
-                  <input type="number" placeholder="Cant" value={tempItem.cantidad || ''} onChange={e => setTempItem(p => ({ ...p, cantidad: parseInt(e.target.value) || 0 }))}
-                    className="p-5 bg-white rounded-2xl font-black text-2xl text-center text-blue-600 shadow-sm" />
+                  <input type="number" placeholder="Cant" value={tempItem.cantidad || ''} onChange={e => setTempItem(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
+                    className="p-4 bg-white rounded-2xl font-black text-2xl text-center text-blue-600 shadow-sm" />
                 </div>
-                <button onClick={agregarItemABasket} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
-                  Cargar al Basket
+                <button onClick={() => { if(tempItem.producto && tempItem.cantidad > 0){ setFormSalida(p=>({...p, items:[...p.items, tempItem]})); setTempItem({producto:'',cantidad:0}); }}}
+                  className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">
+                  Cargar al Camión
                 </button>
               </div>
 
               <div className="space-y-3">
                 {formSalida.items.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100 group">
-                    <div className="flex items-center gap-4">
-                      <div className="size-10 bg-white rounded-xl flex items-center justify-center text-blue-600"><ShoppingBag size={18} /></div>
+                  <div key={i} className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <ShoppingBag size={18} className="text-blue-500" />
                       <div>
-                        <p className="font-black text-gray-900 uppercase italic tracking-tighter text-sm">{item.producto}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">{item.cantidad} Unidades</p>
+                        <p className="font-black text-gray-900 uppercase italic text-sm">{item.producto}</p>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase">{item.cantidad} unidades</p>
                       </div>
                     </div>
-                    <button onClick={() => setFormSalida(p => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }))} className="text-gray-300 hover:text-rose-500 transition-colors">
-                      <Trash2 size={18} />
+                    <button onClick={() => setFormSalida(p=>({...p, items: p.items.filter((_,idx)=>idx!==i)}))} className="text-gray-300 hover:text-rose-500 transition-colors p-2">
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 ))}
               </div>
 
-              <div className="pt-4 space-y-4">
-                <button onClick={registrarSalidaMultiproducto} disabled={formSalida.items.length === 0 || !formSalida.ruta}
-                  className="w-full bg-gray-900 hover:bg-black disabled:bg-gray-100 text-white py-6 rounded-[24px] font-black uppercase text-xs tracking-[3px] shadow-2xl transition-all active:scale-95">
+              <div className="space-y-4 pt-4">
+                <button onClick={registrarSalida} disabled={formSalida.items.length === 0 || !formSalida.ruta || saving}
+                  className="w-full bg-gray-900 hover:bg-black disabled:bg-gray-100 disabled:text-gray-400 text-white py-6 rounded-[24px] font-black uppercase text-xs tracking-[3px] shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                  {saving ? <Loader2 size={18} className="animate-spin" /> : <Truck size={18} />}
                   DESPACHAR VEHÍCULO
                 </button>
-                <button onClick={() => setShowSalidaModal(false)} className="w-full text-gray-400 font-bold uppercase text-[10px] tracking-widest">Abortar Carga</button>
+                <button onClick={() => setShowSalidaModal(false)} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancelar</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL LIQUIDACION */}
-      {showLiqModal && salidaSeleccionada && (
+      {/* ═══ MODAL LIQUIDACIÓN AVANZADA ════════════════════════════════════════ */}
+      {showLiqModal && salidaActual && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-[40px] w-full max-w-lg overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] w-full max-w-2xl shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="p-10 space-y-8">
-              <div className="flex justify-between items-center">
-                 <div>
-                    <h2 className="text-2xl font-black uppercase italic tracking-tighter">Liquidar</h2>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{salidaSeleccionada.producto}</p>
-                 </div>
-                 <div className="bg-blue-600 text-white px-5 py-2 rounded-2xl text-xs font-black italic shadow-lg shadow-blue-500/20">
-                   {salidaSeleccionada.cantidad_salida} <small>UND</small>
-                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
+              {/* Cabecera */}
+              <div className="flex justify-between items-start">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Unidades Vendidas</label>
-                  <input type="number" value={formLiq.cantidad_venta || ''} onChange={e => setFormLiq(p => ({ ...p, cantidad_venta: parseInt(e.target.value) || 0 }))}
-                    className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-emerald-600 text-center" />
+                  <h2 className="text-2xl font-black uppercase italic tracking-tighter">Liquidar Ruta</h2>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">{salidaActual.producto} · {salidaActual.ruta}</p>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Regreso / Mermas</label>
-                  <input type="number" value={formLiq.cantidad_devolucion || ''} onChange={e => setFormLiq(p => ({ ...p, cantidad_devolucion: parseInt(e.target.value) || 0 }))}
-                    className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-blue-600 text-center" />
+                <div className="text-right">
+                  <p className="text-[9px] font-black text-gray-400 uppercase">Llevados</p>
+                  <p className="text-4xl font-black text-blue-600 italic tracking-tighter">{totalLlevado}</p>
                 </div>
               </div>
 
-              <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-[22px]">
-                {['Contado', 'Crédito'].map(t => (
-                  <button key={t} onClick={() => setFormLiq(p => ({ ...p, tipo_pago: t as any }))}
-                    className={`flex-1 py-4 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${formLiq.tipo_pago === t ? 'bg-white dark:bg-gray-700 shadow-xl text-gray-900' : 'text-gray-400'}`}>
-                    {t}
-                  </button>
+              {/* Indicador de balance */}
+              <div className={`p-5 rounded-3xl border-2 flex items-center justify-between ${saldo === 0 ? 'border-emerald-300 bg-emerald-50' : saldo > 0 ? 'border-amber-300 bg-amber-50' : 'border-rose-300 bg-rose-50'}`}>
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Balance: Llevados = Vendidos + Devueltos</p>
+                  <p className="font-black text-lg">
+                    <span className="text-blue-600">{totalLlevado}</span>
+                    <span className="text-gray-400 mx-2">=</span>
+                    <span className="text-emerald-600">{cantidadContado}</span>
+                    <span className="text-gray-400 mx-1">+</span>
+                    <span className="text-orange-500">{totalCredito}</span>
+                    <span className="text-gray-400 mx-1">+</span>
+                    <span className="text-blue-400">{devolucion}</span>
+                  </p>
+                </div>
+                <div className={`text-2xl font-black italic ${saldo === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {saldo === 0 ? '✅ OK' : `⚠️ Faltan ${saldo}`}
+                </div>
+              </div>
+
+              {/* Devoluciones */}
+              <div>
+                <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Unidades Devueltas / Mermas</label>
+                <input type="number" value={devolucion || ''} min={0} max={totalLlevado}
+                  onChange={e => setDevolucion(parseInt(e.target.value) || 0)}
+                  className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-blue-400 text-center" />
+              </div>
+
+              {/* Ventas de CONTADO */}
+              <div className="p-8 bg-emerald-50/50 rounded-[35px] border border-emerald-100 space-y-4">
+                <div className="flex items-center gap-2">
+                  <DollarSign size={16} className="text-emerald-600" />
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Ventas de Contado</p>
+                </div>
+                <input type="number" value={cantidadContado || ''} min={0}
+                  onChange={e => setCantidadContado(parseInt(e.target.value) || 0)}
+                  placeholder="0 unidades en efectivo"
+                  className="w-full p-5 bg-white rounded-3xl outline-none font-black text-3xl text-emerald-600 text-center shadow-sm" />
+              </div>
+
+              {/* Ventas a CRÉDITO — múltiples clientes */}
+              <div className="p-8 bg-orange-50/50 rounded-[35px] border border-orange-100 space-y-6">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={16} className="text-orange-600" />
+                  <p className="text-[10px] font-black text-orange-700 uppercase tracking-widest">Clientes a Crédito</p>
+                  {totalCredito > 0 && <span className="ml-auto text-orange-600 font-black text-lg">{totalCredito} UND</span>}
+                </div>
+
+                {/* Lista de créditos ya agregados */}
+                {creditosItems.map((cr, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-orange-100">
+                    <div className="flex items-center gap-3">
+                      <UserCheck size={16} className="text-orange-500" />
+                      <div>
+                        <p className="font-black text-sm uppercase italic tracking-tighter">{cr.clienteNombre}</p>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase">{cr.cantidad} unidades · Cobro: {cr.fecha_cobro || 'Sin fecha'}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setCreditosItems(p => p.filter((_,idx) => idx !== i))} className="text-gray-300 hover:text-rose-500 transition-colors p-2">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 ))}
-              </div>
 
-              {formLiq.tipo_pago === 'Crédito' && (
-                <div className="space-y-6 animate-in slide-in-from-top-4 duration-300">
+                {/* Formulario nuevo crédito */}
+                <div className="bg-white rounded-[28px] p-6 border border-orange-100 space-y-4">
+                  <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Agregar Cliente</p>
+
+                  {/* Buscar o escribir cliente */}
                   <div className="relative">
-                    <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Identificar Cliente</label>
-                    <input value={formLiq.cliente} onChange={e => { setFormLiq(p => ({ ...p, cliente: e.target.value })); setSearchTermCliente(e.target.value); setShowSuggestions(true); }}
-                      onFocus={() => setShowSuggestions(true)} placeholder="BUSCAR O CREAR..."
-                      className="w-full p-6 bg-gray-900 text-white rounded-[26px] outline-none font-black uppercase italic text-sm placeholder:text-gray-700" />
-                    {showSuggestions && searchTermCliente && (
-                       <div className="absolute z-10 w-full mt-3 bg-white border border-gray-100 rounded-3xl shadow-2xl max-h-48 overflow-y-auto">
-                         {clientes.filter(c => c.nombre.toLowerCase().includes(searchTermCliente.toLowerCase())).map(c => (
-                            <button key={c.id} onClick={() => { setFormLiq(p => ({ ...p, cliente: c.nombre, telefono: c.telefono, direccion: c.direccion })); setShowSuggestions(false); }}
-                              className="w-full p-5 text-left hover:bg-gray-50 text-[10px] font-black uppercase border-b border-gray-50 last:border-0">
-                                {c.nombre} <span className="text-gray-400 ml-2 font-black italic">{c.direccion}</span>
-                            </button>
-                         ))}
-                       </div>
+                    <input value={clienteSearch || nuevoCredito.clienteNombre}
+                      onChange={e => { setClienteSearch(e.target.value); setNuevoCredito(p => ({...p, clienteNombre: e.target.value})); setShowClienteSugg(true); }}
+                      placeholder="BUSCAR O ESCRIBIR NOMBRE..."
+                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-sm uppercase" />
+                    {showClienteSugg && sugerenciasCliente.length > 0 && (
+                      <div className="absolute z-10 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-40 overflow-y-auto">
+                        {sugerenciasCliente.map(c => (
+                          <button key={c.id} onClick={() => {
+                            setNuevoCredito(p => ({...p, clienteNombre: c.nombre, telefono: c.telefono, direccion: c.direccion}));
+                            setClienteSearch(c.nombre);
+                            setShowClienteSugg(false);
+                          }} className="w-full p-4 text-left hover:bg-gray-50 text-[10px] font-black uppercase border-b border-gray-50">
+                            {c.nombre} <span className="text-gray-400 font-normal">· {c.ruta}</span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <input placeholder="TELÉFONO" value={formLiq.telefono} onChange={e => setFormLiq(p => ({ ...p, telefono: e.target.value }))} className="p-5 bg-gray-50 rounded-2xl outline-none text-[10px] font-black uppercase" />
-                    <input type="date" value={formLiq.fecha_cobro} onChange={e => setFormLiq(p => ({ ...p, fecha_cobro: e.target.value }))} className="p-5 bg-gray-50 rounded-2xl outline-none text-[10px] font-black uppercase" />
-                  </div>
-                  <input placeholder="DIRECCIÓN DE COBRO" value={formLiq.direccion} onChange={e => setFormLiq(p => ({ ...p, direccion: e.target.value }))} className="p-5 bg-gray-50 rounded-[22px] outline-none text-[10px] font-black uppercase w-full" />
-                </div>
-              )}
 
-              <div className="pt-4 space-y-4">
-                <button onClick={registrarLiquidacion} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-emerald-500/20 active:scale-95 transition-all">
-                  SALVAR LIQUIDACIÓN
+                  <div className="grid grid-cols-2 gap-3">
+                    <input value={nuevoCredito.telefono} onChange={e => setNuevoCredito(p=>({...p, telefono: e.target.value}))}
+                      placeholder="Teléfono" className="p-4 bg-gray-50 rounded-2xl outline-none text-[10px] font-bold" />
+                    <input type="date" value={nuevoCredito.fecha_cobro} onChange={e => setNuevoCredito(p=>({...p, fecha_cobro: e.target.value}))}
+                      className="p-4 bg-gray-50 rounded-2xl outline-none text-[10px] font-bold" />
+                  </div>
+                  <input value={nuevoCredito.direccion} onChange={e => setNuevoCredito(p=>({...p, direccion: e.target.value}))}
+                    placeholder="Dirección de cobro" className="w-full p-4 bg-gray-50 rounded-2xl outline-none text-[10px] font-bold" />
+                  <div className="flex gap-3">
+                    <input type="number" value={nuevoCredito.cantidad || ''} onChange={e => setNuevoCredito(p=>({...p, cantidad: parseInt(e.target.value)||0}))}
+                      placeholder="Cant." className="w-28 p-4 bg-gray-50 rounded-2xl outline-none font-black text-xl text-center text-orange-600" />
+                    <button onClick={agregarCreditoItem}
+                      className="flex-1 bg-orange-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-600 transition-all active:scale-95 flex items-center justify-center gap-2">
+                      <Plus size={16} /> Agregar a Crédito
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botón final */}
+              <div className="space-y-4 pt-4">
+                {!formularioOk && (
+                  <div className="flex items-center gap-2 p-4 bg-amber-50 rounded-2xl border border-amber-200">
+                    <AlertCircle size={16} className="text-amber-500" />
+                    <p className="text-[10px] font-black text-amber-600 uppercase">
+                      {saldo > 0 ? `Faltan ${saldo} unidades por asignar (contado o crédito)` : saldo < 0 ? `Excediste en ${Math.abs(saldo)} unidades` : 'Completa los datos'}
+                    </p>
+                  </div>
+                )}
+                <button onClick={registrarLiquidacion} disabled={!formularioOk || saving}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                  {saving ? <Loader2 size={18} className="animate-spin" /> : <PackageCheck size={18} />}
+                  CERRAR LIQUIDACIÓN
                 </button>
-                <button onClick={() => setShowLiqModal(false)} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cerrar</button>
+                <button onClick={() => setShowLiqModal(false)} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancelar</button>
               </div>
             </div>
           </div>
