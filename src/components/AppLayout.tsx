@@ -86,7 +86,7 @@ const MainContent = () => {
   // Filtrar menú según rol
   const filteredMenu = MENU_ITEMS.filter(item => {
     if (user.role === 'admin') return true;
-    if (user.role === 'vendedor') return ['Ventas y Rutas', 'Liquidación', 'Cartera', 'Dashboard'].includes(item.label);
+    if (user.role === 'vendedor') return ['Ventas y Rutas', 'Liquidación', 'Clientes', 'Cartera', 'Dashboard'].includes(item.label);
     if (user.role === 'operario') return ['Producción', 'Materia Prima', 'Producto Terminado', 'Dashboard'].includes(item.label);
     return false;
   });

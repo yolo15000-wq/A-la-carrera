@@ -8,8 +8,7 @@ export interface Cliente {
   telefono: string;
   direccion: string;
   ruta: string;
-  frecuencia?: string;
-  puntos_lealtad?: number;
+  vendedor?: string;   // ← vendedor que lo atendió
 }
 
 interface ClientesContextType {
@@ -28,11 +27,16 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function loadClientes() {
       try {
-        await googleSheetsService.getSheetData<any>('Configuracion'); // Usamos Configuracion o una nueva 'Clientes'
-        // Si no existe la hoja Clientes, el service devuelve []
-        const sheetClientes = await googleSheetsService.getSheetData<any>('Clientes');
-        if (sheetClientes && sheetClientes.length > 0) {
-          setClientes(sheetClientes);
+        const rows = await googleSheetsService.getSheetData<any>('Clientes');
+        if (rows.length > 0) {
+          setClientes(rows.map((r: any) => ({
+            id:        r.id ?? '',
+            nombre:    r.nombre ?? '',
+            telefono:  r.telefono ?? '',
+            direccion: r.direccion ?? '',
+            ruta:      r.ruta ?? '',
+            vendedor:  r.vendedor ?? '',
+          })));
         }
       } catch (err) {
         console.error("Error cargando clientes:", err);
@@ -45,14 +49,18 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
 
   const agregarCliente = useCallback(async (nuevo: Cliente) => {
     const id = `CLI-${Date.now()}`;
-    const clienteConId = { ...nuevo, id };
-    setClientes(prev => [clienteConId, ...prev]);
-    return await googleSheetsService.appendRow('Clientes', clienteConId);
+    const row = { ...nuevo, id };
+    setClientes(prev => {
+      // Evitar duplicados por nombre
+      if (prev.some(c => c.nombre.toLowerCase() === nuevo.nombre.toLowerCase())) return prev;
+      return [row, ...prev];
+    });
+    return await googleSheetsService.appendRow('Clientes', row);
   }, []);
 
-  const actualizarCliente = useCallback(async (id: string, updateData: Partial<Cliente>) => {
-    setClientes(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
-    return await googleSheetsService.updateRow('Clientes', 'id', id, updateData);
+  const actualizarCliente = useCallback(async (id: string, data: Partial<Cliente>) => {
+    setClientes(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+    return await googleSheetsService.updateRow('Clientes', 'id', id, data);
   }, []);
 
   return (
@@ -63,7 +71,7 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
 }
 
 export function useClientes() {
-  const context = useContext(ClientesContext);
-  if (!context) throw new Error("useClientes debe usarse dentro de un ClientesProvider");
-  return context;
+  const ctx = useContext(ClientesContext);
+  if (!ctx) throw new Error("useClientes debe usarse dentro de ClientesProvider");
+  return ctx;
 }
