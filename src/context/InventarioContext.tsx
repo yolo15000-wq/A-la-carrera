@@ -77,19 +77,33 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
         ]);
         
         if (sheetInsumos && sheetInsumos.length > 0) {
-          setInsumos((sheetInsumos as any[]).map(item => ({ ...item, existencia: Number(item.existencia) })));
+          setInsumos((sheetInsumos as any[]).map(item => ({
+            codigo:    item.codigo ?? item.id ?? '',
+            insumo:    item.insumo ?? item.nombre ?? '',
+            existencia: Number(item.existencia ?? item.stock_actual ?? 0),
+            unidad:    item.unidad ?? 'gr',
+          })));
         }
 
         if (sheetProductos && sheetProductos.length > 0) {
           setProductosTerminados(prev => {
             const sheetItems = sheetProductos as any[];
-            // Actualizar los existentes
-            const updated = prev.map(p => {
-              const fromSheet = sheetItems.find(sp => sp.id === p.id);
-              return fromSheet ? { ...p, stock: Number(fromSheet.stock) } : p;
+            const normalize = (sp: any) => ({
+              id:           sp.slug ?? sp.id ?? '',
+              nombre:       sp.nombre ?? '',
+              descripcion:  sp.descripcion ?? '',
+              stock:        Number(sp.stock ?? sp.stock_actual ?? 0),
+              unidad:       sp.unidad ?? 'und',
+              precio_venta: Number(sp.precio ?? sp.precio_venta ?? 0),
+              stock_minimo: Number(sp.stock_minimo ?? 0),
             });
-            // Añadir los nuevos que no estaban en la lista inicial
-            const nuevos = sheetItems.filter(si => !prev.some(p => p.id === si.id));
+            const updated = prev.map(p => {
+              const fromSheet = sheetItems.find(sp => (sp.slug ?? sp.id) === p.id);
+              return fromSheet ? { ...p, stock: Number(fromSheet.stock ?? fromSheet.stock_actual ?? p.stock) } : p;
+            });
+            const nuevos = sheetItems
+              .filter(si => !prev.some(p => p.id === (si.slug ?? si.id)))
+              .map(normalize);
             return [...updated, ...nuevos];
           });
         }
@@ -172,7 +186,8 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
       const producto = nuevoState[index];
       const nuevoStock = producto.stock + cantidad;
       nuevoState[index] = { ...producto, stock: nuevoStock };
-      googleSheetsService.updateRow('ProductosTerminados', 'id', producto.id, { stock: nuevoStock });
+      // Supabase usa 'slug' como clave en la tabla productos
+      googleSheetsService.updateRow('ProductosTerminados', 'slug', producto.id, { stock: nuevoStock });
       return nuevoState;
     });
   }, []);
@@ -186,7 +201,7 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
       const producto = nuevoState[index];
       const nuevoStock = Math.max(0, producto.stock - cantidad);
       nuevoState[index] = { ...producto, stock: nuevoStock };
-      googleSheetsService.updateRow('ProductosTerminados', 'id', producto.id, { stock: nuevoStock });
+      googleSheetsService.updateRow('ProductosTerminados', 'slug', producto.id, { stock: nuevoStock });
       return nuevoState;
     });
   }, []);

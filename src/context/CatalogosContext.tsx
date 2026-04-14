@@ -9,14 +9,14 @@ export interface Ingredient {
 }
 
 export interface Recipe {
-  id: string;
+  id: string;       // = slug en Supabase
   nombre: string;
   precio: number;
   ingredientes: Ingredient[];
 }
 
 export interface Product {
-  id: string;
+  id: string;       // = slug en Supabase
   nombre: string;
   stock: number;
   precio: number;
@@ -24,11 +24,11 @@ export interface Product {
 
 interface CatalogosContextType {
   products: Product[];
-  recipes: Recipe[];
-  rutas: string[];
-  addRecipe: (recipe: Recipe) => Promise<void>;
+  recipes:  Recipe[];
+  rutas:    string[];
+  addRecipe:  (recipe: Recipe)  => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
-  addRoute: (route: string) => void;
+  addRoute:   (route: string)    => void;
   loading: boolean;
 }
 
@@ -36,63 +36,87 @@ const CatalogosContext = createContext<CatalogosContextType | undefined>(undefin
 
 const RUTAS_DEFAULT = ['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente'];
 
+// Normaliza una fila de Supabase (productos tiene slug/stock_actual) al formato interno
+function normalizeProduct(row: any): Product {
+  return {
+    id:     row.slug   ?? row.id    ?? '',
+    nombre: row.nombre ?? '',
+    stock:  Number(row.stock ?? row.stock_actual ?? 0),
+    precio: Number(row.precio ?? row.precio_venta ?? 0),
+  };
+}
+
+function normalizeRecipe(row: any): Recipe {
+  let ings: Ingredient[] = [];
+  try {
+    ings = typeof row.ingredientes === 'string'
+      ? JSON.parse(row.ingredientes)
+      : row.ingredientes ?? [];
+  } catch { ings = []; }
+  return {
+    id:           row.slug ?? row.id ?? '',
+    nombre:       row.nombre ?? '',
+    precio:       Number(row.precio ?? 0),
+    ingredientes: ings,
+  };
+}
+
 export function CatalogosProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [recipes, setRecipes]   = useState<Recipe[]>([]);
-  const [rutas, setRutas]       = useState<string[]>(RUTAS_DEFAULT);
-  const [loading, setLoading]   = useState(true);
+  const [recipes,  setRecipes]  = useState<Recipe[]>([]);
+  const [rutas,    setRutas]    = useState<string[]>(RUTAS_DEFAULT);
+  const [loading,  setLoading]  = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    // Carga desde localStorage — nunca falla
-    const savedProducts = await googleSheetsService.getSheetData<Product>('ProductosTerminados');
-    const savedRecipes  = await googleSheetsService.getSheetData<Recipe>('Recipes');
-    const savedRoutes   = await googleSheetsService.getSheetData<string>('Configuracion');
+    try {
+      const [rawProducts, rawRecipes, rawRutas] = await Promise.all([
+        googleSheetsService.getSheetData<any>('ProductosTerminados'),
+        googleSheetsService.getSheetData<any>('Recipes'),
+        googleSheetsService.getSheetData<any>('Configuracion'),
+      ]);
 
-    if (savedProducts.length > 0) setProducts(savedProducts);
-    if (savedRecipes.length  > 0) setRecipes(savedRecipes);
-    if (savedRoutes.length   > 0) setRutas(savedRoutes);
-
-    setLoading(false);
+      if (rawProducts.length > 0) setProducts(rawProducts.map(normalizeProduct));
+      if (rawRecipes.length  > 0) setRecipes(rawRecipes.map(normalizeRecipe));
+      if (rawRutas.length    > 0) setRutas(rawRutas.map((r: any) => r.nombre ?? r));
+    } catch (err) {
+      console.error("Error cargando catálogos:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  /** Guarda un producto nuevo en el catálogo */
   const addProduct = useCallback(async (product: Product) => {
-    await googleSheetsService.appendRow('ProductosTerminados', product);
-    setProducts(prev => {
-      // Evitar duplicados
-      if (prev.some(p => p.id === product.id)) return prev;
-      return [...prev, product];
-    });
+    // Supabase usa 'slug' como identificador único
+    const row = { slug: product.id, nombre: product.nombre, stock: product.stock, precio: product.precio };
+    await googleSheetsService.appendRow('ProductosTerminados', row);
+    setProducts(prev => prev.some(p => p.id === product.id) ? prev : [...prev, product]);
   }, []);
 
-  /** Guarda una receta Y crea el producto automáticamente */
   const addRecipe = useCallback(async (recipe: Recipe) => {
-    await googleSheetsService.appendRow('Recipes', recipe);
-    setRecipes(prev => {
-      if (prev.some(r => r.id === recipe.id)) return prev;
-      return [...prev, recipe];
-    });
-
-    const nuevoProducto: Product = {
-      id: recipe.id,
-      nombre: recipe.nombre,
-      stock: 0,
-      precio: recipe.precio,
+    // ingredientes va como JSON en Supabase
+    const row = {
+      slug:         recipe.id,
+      nombre:       recipe.nombre,
+      precio:       recipe.precio,
+      ingredientes: JSON.stringify(recipe.ingredientes),
     };
-    await addProduct(nuevoProducto);
+    await googleSheetsService.appendRow('Recipes', row);
+    setRecipes(prev => prev.some(r => r.id === recipe.id) ? prev : [...prev, recipe]);
+
+    // Crear producto en catálogo automáticamente
+    await addProduct({ id: recipe.id, nombre: recipe.nombre, stock: 0, precio: recipe.precio });
   }, [addProduct]);
 
-  /** Agrega una ruta nueva */
   const addRoute = useCallback((route: string) => {
     setRutas(prev => {
       if (prev.includes(route)) return prev;
       const next = [...prev, route];
-      // Guardamos la lista completa en localStorage
-      googleSheetsService.clearSheet('Configuracion');
-      next.forEach(r => googleSheetsService.appendRow('Configuracion', r));
+      // Supabase: insertar la ruta
+      googleSheetsService.appendRow('Configuracion', { nombre: route })
+        .catch(err => console.error("Error guardando ruta:", err));
       return next;
     });
   }, []);
