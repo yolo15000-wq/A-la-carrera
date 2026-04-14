@@ -25,7 +25,7 @@ export interface Product {
 interface CatalogosContextType {
   products: Product[];
   recipes: Recipe[];
-  routes: string[];
+  rutas: string[];
   addRecipe: (recipe: Recipe) => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
   addRoute: (route: string) => void;
@@ -37,7 +37,7 @@ const CatalogosContext = createContext<CatalogosContextType | undefined>(undefin
 export function CatalogosProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [routes, setRoutes] = useState<string[]>(['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente']);
+  const [rutas, setRutas] = useState<string[]>(['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente']);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -52,7 +52,7 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
       if (sheetRecipes.length > 0) setRecipes(sheetRecipes);
       
       const localRoutes = localStorage.getItem('demo_routes');
-      if (localRoutes) setRoutes(JSON.parse(localRoutes));
+      if (localRoutes) setRutas(JSON.parse(localRoutes));
     } catch (err) {
       console.error("Error cargando catálogos:", err);
     } finally {
@@ -85,7 +85,7 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
   };
 
   const addRoute = (route: string) => {
-    setRoutes(prev => {
+    setRutas(prev => {
       const next = [...prev, route];
       localStorage.setItem('demo_routes', JSON.stringify(next));
       return next;
@@ -93,7 +93,7 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <CatalogosContext.Provider value={{ products, recipes, routes, addRecipe, addProduct, addRoute, loading }}>
+    <CatalogosContext.Provider value={{ products, recipes, rutas, addRecipe, addProduct, addRoute, loading }}>
       {children}
     </CatalogosContext.Provider>
   );
