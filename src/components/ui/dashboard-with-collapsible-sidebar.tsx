@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import React, { useState, useEffect } from "react";
 import {
   Home,
@@ -149,7 +149,7 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs }) => {
     <button
       onClick={() => setSelected(title)}
       className={`relative flex h-11 w-full items-center rounded-md transition-all duration-200 ${isSelected
-        ? "bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 shadow-sm border-l-2 border-blue-500"
+        ? "bg-brand-50 dark:bg-brand-950/50 text-brand-600 dark:text-brand-300 shadow-sm border-l-2 border-brand-500"
         : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200"
         }`}
     >
@@ -167,7 +167,7 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs }) => {
       )}
 
       {notifs && open && (
-        <span className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 dark:bg-blue-600 text-xs text-white font-medium">
+        <span className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 dark:bg-brand-500 text-xs text-white font-medium">
           {notifs}
         </span>
       )}
@@ -310,7 +310,7 @@ const DashboardView = () => (
 const ProduccionView = () => (
   <div className="space-y-6">
     <div className="flex gap-4">
-      <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+      <button className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg font-medium transition-colors">
         Iniciar Batch
       </button>
       <button className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-6 py-2 rounded-lg font-medium transition-colors">
@@ -348,9 +348,9 @@ const VentasView = () => (
   <div className="space-y-6">
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
-        <h3 className="font-semibold mb-4 text-blue-600">Registro de Ruta</h3>
+        <h3 className="font-semibold mb-4 text-brand-500">Registro de Ruta</h3>
         <p className="text-sm text-gray-500 mb-4">Asigna vendedor y carga productos del Stock Central</p>
-        <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors">
+        <button className="w-full bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg transition-colors">
           Cargar Productos
         </button>
       </div>
@@ -376,7 +376,7 @@ const LiquidacionView = () => (
               <p className="font-medium">Tienda Doña Rosa</p>
               <p className="text-xs text-gray-500">Deuda: $450,000 | Vencimiento: 25/03/24</p>
             </div>
-            <button className="text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-1 rounded-md hover:bg-blue-200 transition-colors">
+            <button className="text-sm bg-brand-100 dark:bg-brand-950/30 text-brand-600 dark:text-brand-300 px-4 py-1 rounded-md hover:bg-blue-200 transition-colors">
               Marcar Pago
             </button>
           </div>
@@ -397,7 +397,7 @@ const MateriaPrimaView = () => (
         <div key={i} className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
           <div className="flex justify-between items-start mb-2">
             <h4 className="font-medium">{item.name}</h4>
-            <Tag className={`h-4 w-4 ${item.stock < item.min ? 'text-red-500' : 'text-blue-500'}`} />
+            <Tag className={`h-4 w-4 ${item.stock < item.min ? 'text-red-500' : 'text-brand-500'}`} />
           </div>
           <p className="text-2xl font-bold">{item.stock} {item.unit}</p>
           <div className="mt-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
@@ -410,7 +410,7 @@ const MateriaPrimaView = () => (
         </div>
       ))}
     </div>
-    <button className="flex items-center gap-2 text-blue-600 font-medium hover:underline">
+    <button className="flex items-center gap-2 text-brand-500 font-medium hover:underline">
       <Package className="h-4 w-4" /> Registrar Compra de Insumos
     </button>
   </div>
@@ -418,7 +418,7 @@ const MateriaPrimaView = () => (
 
 const StatCard = ({ title, value, icon: Icon, color, trend }) => {
   const colorMap = {
-    blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
+    blue: 'bg-brand-50 dark:bg-brand-950/20 text-brand-500 dark:text-brand-400',
     green: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400',
     orange: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400',
     red: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400',
@@ -451,3 +451,4 @@ const AlertItem = ({ title, desc, status }) => (
 );
 
 export default Example;
+

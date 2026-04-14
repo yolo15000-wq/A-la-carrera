@@ -1,4 +1,4 @@
-import { useAuth } from "../context/AuthContext";
+﻿import { useAuth } from "../context/AuthContext";
 import { useState, useEffect, useContext, useMemo } from "react";
 import { InventarioContext } from "../context/InventarioContext";
 import { googleSheetsService } from "../services/googleSheetsService";
@@ -58,7 +58,7 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
     return (
       <div className="space-y-8 py-10">
         <div className="text-center space-y-4">
-          <div className="size-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-black mx-auto shadow-xl shadow-blue-500/30 animate-pulse border-4 border-white dark:border-gray-800">
+          <div className="size-24 bg-brand-500 rounded-full flex items-center justify-center text-white text-4xl font-black mx-auto shadow-xl shadow-brand-500/30 animate-pulse border-4 border-white dark:border-gray-800">
             {user.username?.substring(0, 1).toUpperCase() || "?"}
           </div>
           <div className="space-y-1">
@@ -73,8 +73,8 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
           {user.role === 'vendedor' ? (
             <>
               <div onClick={() => onViewChange?.('Ventas y Rutas')}
-                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-blue-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
-                <div className="size-20 bg-blue-100 dark:bg-blue-900/30 rounded-3xl flex items-center justify-center mx-auto text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all transform group-hover:rotate-12">
+                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-brand-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
+                <div className="size-20 bg-brand-100 dark:bg-brand-950/30 rounded-3xl flex items-center justify-center mx-auto text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-all transform group-hover:rotate-12">
                   <Truck size={40} />
                 </div>
                 <h3 className="font-black text-2xl text-gray-900 dark:text-white uppercase italic">MI RUTA</h3>
@@ -100,8 +100,8 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Iniciar nuevo lote hoy</p>
               </div>
               <div onClick={() => onViewChange?.('Materia Prima')}
-                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-blue-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
-                <div className="size-20 bg-blue-100 dark:bg-blue-900/30 rounded-3xl flex items-center justify-center mx-auto text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border-2 border-transparent hover:border-brand-500 shadow-xl text-center space-y-4 group hover:scale-[1.05] transition-all cursor-pointer">
+                <div className="size-20 bg-brand-100 dark:bg-brand-950/30 rounded-3xl flex items-center justify-center mx-auto text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-all">
                   <Package size={40} />
                 </div>
                 <h3 className="font-black text-2xl text-gray-900 dark:text-white uppercase italic">INSUMOS</h3>
@@ -180,12 +180,12 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
              <div className="space-y-4">
                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 italic">Fuerza de Ventas (Rutas)</h4>
                {activosRuta.map((r, i) => (
-                 <div key={'r'+i} className="bg-blue-50 dark:bg-blue-900/10 p-5 rounded-3xl border border-blue-100 dark:border-blue-900/30 flex justify-between items-center">
+                 <div key={'r'+i} className="bg-brand-50 dark:bg-brand-950/10 p-5 rounded-3xl border border-brand-100 dark:border-blue-900/30 flex justify-between items-center">
                    <div className="flex gap-4 items-center">
-                     <div className="size-10 bg-blue-200 rounded-xl flex items-center justify-center text-blue-700 animate-bounce"><Truck size={20} /></div>
+                     <div className="size-10 bg-blue-200 rounded-xl flex items-center justify-center text-brand-600 animate-bounce"><Truck size={20} /></div>
                      <div>
                        <p className="font-black text-gray-900 dark:text-white uppercase italic text-sm leading-none">{r.vendedor}</p>
-                       <p className="text-[10px] text-blue-600 font-bold uppercase">{r.ruta}</p>
+                       <p className="text-[10px] text-brand-500 font-bold uppercase">{r.ruta}</p>
                      </div>
                    </div>
                    <div className="text-right font-black text-lg text-blue-800 italic">{r.cantidad_salida}</div>
@@ -233,3 +233,4 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
     </div>
   );
 }
+

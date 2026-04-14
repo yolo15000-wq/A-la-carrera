@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useMemo } from "react";
+﻿import { useState, useContext, useEffect, useMemo } from "react";
 import {
   Plus, Truck, DollarSign, CreditCard, PackageCheck,
   Trash2, ShoppingBag, UserCheck, AlertCircle, CheckCircle2, Loader2
@@ -268,13 +268,13 @@ export default function VentasView() {
         activeTab === 'salidas' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {salidasFiltradas.filter(s => s.estado === 'En Ruta').map(s => (
-              <div key={String(s.id)} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-blue-500 transition-all group">
+              <div key={String(s.id)} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-brand-500 transition-all group">
                 <div className="flex justify-between items-start mb-6">
                   <div>
-                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-[2px]">{s.ruta}</span>
+                    <span className="text-[10px] font-black text-brand-500 uppercase tracking-[2px]">{s.ruta}</span>
                     <h4 className="text-2xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter leading-tight mt-1">{s.producto}</h4>
                   </div>
-                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all"><Truck size={20} /></div>
+                  <div className="p-3 bg-brand-50 text-brand-500 rounded-2xl group-hover:bg-brand-500 group-hover:text-white transition-all"><Truck size={20} /></div>
                 </div>
                 <div className="flex items-end justify-between mb-8">
                   <div>
@@ -283,7 +283,7 @@ export default function VentasView() {
                   </div>
                   <p className="text-xs font-black text-gray-500 uppercase">{s.vendedor}</p>
                 </div>
-                <button onClick={() => abrirLiq(s)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                <button onClick={() => abrirLiq(s)} className="w-full bg-brand-500 hover:bg-brand-600 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
                   <PackageCheck size={18} /> Liquidar
                 </button>
               </div>
@@ -317,7 +317,7 @@ export default function VentasView() {
                       </td>
                       <td className="px-6 py-4 font-black text-center">
                         {l.total_pesos
-                          ? <span className="text-blue-600">${Number(l.total_pesos).toLocaleString('es-CO')}</span>
+                          ? <span className="text-brand-500">${Number(l.total_pesos).toLocaleString('es-CO')}</span>
                           : <span className="text-gray-300">—</span>
                         }
                       </td>
@@ -358,8 +358,8 @@ export default function VentasView() {
                 </div>
               </div>
 
-              <div className="p-8 bg-blue-50/50 rounded-[35px] border border-blue-100 space-y-6">
-                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Añadir Productos</p>
+              <div className="p-8 bg-brand-50/50 rounded-[35px] border border-brand-100 space-y-6">
+                <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">Añadir Productos</p>
                 <div className="grid grid-cols-2 gap-4">
                   <select value={tempItem.producto} onChange={e => setTempItem(p => ({...p, producto: e.target.value}))}
                     className="p-4 bg-white rounded-2xl font-bold text-xs uppercase shadow-sm">
@@ -367,10 +367,10 @@ export default function VentasView() {
                     {products.map(p => <option key={p.id} value={p.nombre}>{p.nombre} ({p.stock} disponibles)</option>)}
                   </select>
                   <input type="number" placeholder="Cant" value={tempItem.cantidad || ''} onChange={e => setTempItem(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
-                    className="p-4 bg-white rounded-2xl font-black text-2xl text-center text-blue-600 shadow-sm" />
+                    className="p-4 bg-white rounded-2xl font-black text-2xl text-center text-brand-500 shadow-sm" />
                 </div>
                 <button onClick={() => { if(tempItem.producto && tempItem.cantidad > 0){ setFormSalida(p=>({...p, items:[...p.items, tempItem]})); setTempItem({producto:'',cantidad:0}); }}}
-                  className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">
+                  className="w-full bg-brand-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">
                   Cargar al Camión
                 </button>
               </div>
@@ -379,7 +379,7 @@ export default function VentasView() {
                 {formSalida.items.map((item, i) => (
                   <div key={i} className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
                     <div className="flex items-center gap-3">
-                      <ShoppingBag size={18} className="text-blue-500" />
+                      <ShoppingBag size={18} className="text-brand-500" />
                       <div>
                         <p className="font-black text-gray-900 uppercase italic text-sm">{item.producto}</p>
                         <p className="text-[9px] text-gray-400 font-bold uppercase">{item.cantidad} unidades</p>
@@ -418,7 +418,7 @@ export default function VentasView() {
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black text-gray-400 uppercase">Llevados</p>
-                  <p className="text-4xl font-black text-blue-600 italic tracking-tighter">{totalLlevado}</p>
+                  <p className="text-4xl font-black text-brand-500 italic tracking-tighter">{totalLlevado}</p>
                 </div>
               </div>
 
@@ -427,13 +427,13 @@ export default function VentasView() {
                 <div className="space-y-1">
                   <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Balance: Llevados = Vendidos + Devueltos</p>
                   <p className="font-black text-lg">
-                    <span className="text-blue-600">{totalLlevado}</span>
+                    <span className="text-brand-500">{totalLlevado}</span>
                     <span className="text-gray-400 mx-2">=</span>
                     <span className="text-emerald-600">{cantidadContado}</span>
                     <span className="text-gray-400 mx-1">+</span>
                     <span className="text-orange-500">{totalCredito}</span>
                     <span className="text-gray-400 mx-1">+</span>
-                    <span className="text-blue-400">{devolucion}</span>
+                    <span className="text-brand-400">{devolucion}</span>
                   </p>
                 </div>
                 <div className={`text-2xl font-black italic ${saldo === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -446,7 +446,7 @@ export default function VentasView() {
                 <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Unidades Devueltas / Mermas</label>
                 <input type="number" value={devolucion || ''} min={0} max={totalLlevado}
                   onChange={e => setDevolucion(parseInt(e.target.value) || 0)}
-                  className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-blue-400 text-center" />
+                  className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-brand-400 text-center" />
               </div>
 
               {/* Ventas de CONTADO */}
@@ -553,3 +553,4 @@ export default function VentasView() {
     </div>
   );
 }
+

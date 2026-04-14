@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useCallback } from "react";
+﻿import { createContext, useState, useContext, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { googleSheetsService } from "../services/googleSheetsService";
 
@@ -75,3 +75,4 @@ export function useClientes() {
   if (!ctx) throw new Error("useClientes debe usarse dentro de ClientesProvider");
   return ctx;
 }
+

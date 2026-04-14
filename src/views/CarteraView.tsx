@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+﻿import { useState, useContext } from "react";
 import { 
   Users, 
   Search, 
@@ -60,16 +60,16 @@ export default function CarteraView() {
           placeholder="Buscar por cliente o vendedor..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-brand-500 text-sm"
         />
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
             <h3 className="font-bold flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-500" />
+                <Users className="h-5 w-5 text-brand-500" />
                 Deducción de Deudores
-                {loading && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
+                {loading && <Loader2 className="h-4 w-4 animate-spin text-brand-500" />}
             </h3>
             <div className="flex gap-2">
                 <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{creditos.filter(c => c.estado === 'Pendiente').length} Pendientes</span>
@@ -83,7 +83,7 @@ export default function CarteraView() {
             <div key={credito.id_credito || i} className="p-4 space-y-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 font-bold">
+                  <div className="h-10 w-10 rounded-full bg-brand-50 dark:bg-brand-950/20 flex items-center justify-center text-brand-500 font-bold">
                     {credito.cliente.charAt(0)}
                   </div>
                   <div>
@@ -147,7 +147,7 @@ export default function CarteraView() {
                 <tr key={credito.id_credito || i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 font-bold">
+                      <div className="h-10 w-10 rounded-full bg-brand-50 dark:bg-brand-950/20 flex items-center justify-center text-brand-500 font-bold">
                         {credito.cliente.charAt(0)}
                       </div>
                       <div>
@@ -209,3 +209,4 @@ export default function CarteraView() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   Book, Package, Users, Plus, Save, Trash2, ChevronRight, Database, Search, Truck, X, ShieldCheck
 } from "lucide-react";
@@ -103,7 +103,7 @@ export default function MaestrosView() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2 uppercase tracking-tighter italic">
-            <Database className="h-6 w-6 text-blue-600" />
+            <Database className="h-6 w-6 text-brand-500" />
             Catálogos Maestros
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-[10px]">Base de datos central del negocio</p>
@@ -112,7 +112,7 @@ export default function MaestrosView() {
         <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit">
           {['recetas', 'productos', 'personal'].map((tab: any) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-white dark:bg-gray-700 shadow-sm text-brand-500' : 'text-gray-500'}`}>
               {tab === 'recetas' ? <Book className="h-4 w-4" /> : tab === 'productos' ? <Package className="h-4 w-4" /> : <Users className="h-4 w-4" />}
               {tab}
             </button>
@@ -120,7 +120,7 @@ export default function MaestrosView() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden border-2 border-blue-500/20">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden border-2 border-brand-500/20">
         <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -133,7 +133,7 @@ export default function MaestrosView() {
               if (activeTab === 'productos') setShowProdModal(true);
               if (activeTab === 'recetas') setShowRecipeModal(true);
             }}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
+            className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition-all">
             <Plus className="h-4 w-4" /> Nueva {activeTab}
           </button>
         </div>
@@ -144,10 +144,10 @@ export default function MaestrosView() {
               {profiles.map(p => (
                 <div key={p.id} className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-between group">
                   <div className="flex justify-between items-start mb-3">
-                    <div className="size-10 bg-white dark:bg-gray-700 rounded-xl flex items-center justify-center text-lg font-black text-blue-600 shadow-sm">
+                    <div className="size-10 bg-white dark:bg-gray-700 rounded-xl flex items-center justify-center text-lg font-black text-brand-500 shadow-sm">
                       {p.username?.substring(0, 1).toUpperCase()}
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-blue-100 text-blue-700">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-brand-100 text-brand-600">
                       {p.role}
                     </span>
                   </div>
@@ -168,7 +168,7 @@ export default function MaestrosView() {
                 <div key={prod.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center justify-between shadow-sm group">
                   <div className="space-y-1">
                     <span className="font-bold text-gray-800 dark:text-gray-200 uppercase text-[10px] italic block">{prod.nombre}</span>
-                    <span className="text-[14px] font-black text-blue-600 tracking-tighter italic">
+                    <span className="text-[14px] font-black text-brand-500 tracking-tighter italic">
                       ${prod.precio.toLocaleString()}
                     </span>
                   </div>
@@ -183,9 +183,9 @@ export default function MaestrosView() {
           {activeTab === 'recetas' && (
             <div className="p-6 space-y-4">
                {recipes.map(recipe => (
-                 <div key={recipe.id} className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between group hover:border-blue-500 transition-all">
+                 <div key={recipe.id} className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between group hover:border-brand-500 transition-all">
                     <div className="flex items-center gap-4">
-                      <div className="size-12 bg-white dark:bg-gray-700 rounded-2xl flex items-center justify-center font-black text-blue-600 italic text-lg shadow-sm">
+                      <div className="size-12 bg-white dark:bg-gray-700 rounded-2xl flex items-center justify-center font-black text-brand-500 italic text-lg shadow-sm">
                         {recipe.nombre.substring(0, 2)}
                       </div>
                       <div className="space-y-1">
@@ -233,7 +233,7 @@ export default function MaestrosView() {
                         <label className="text-[10px] font-black text-gray-400 uppercase">Gramos/Und</label>
                         <input type="number" placeholder="Ej: 500" value={newRecipe.cantidad} onChange={e => setNewRecipe(p => ({...p, cantidad: e.target.value}))} className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-xs font-bold outline-none" />
                      </div>
-                     <button onClick={addIngredient} className="p-3 bg-blue-600 text-white rounded-xl"><Plus /></button>
+                     <button onClick={addIngredient} className="p-3 bg-brand-500 text-white rounded-xl"><Plus /></button>
                   </div>
                   <div className="mt-4 space-y-2">
                      {newRecipe.ingredientes.map((ing, i) => (
@@ -246,7 +246,7 @@ export default function MaestrosView() {
                </div>
             </div>
             <div className="p-6 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
-               <button onClick={handleCreateRecipe} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-500/30">Guardar Receta y Producto</button>
+               <button onClick={handleCreateRecipe} className="w-full bg-brand-500 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-brand-500/30">Guardar Receta y Producto</button>
             </div>
           </div>
         </div>
@@ -265,7 +265,7 @@ export default function MaestrosView() {
                 <label className="text-[10px] font-black text-gray-400 uppercase">Precio</label>
                 <input type="number" value={newProd.precio} onChange={e => setNewProd(p => ({...p, precio: e.target.value}))} className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold outline-none" />
               </div>
-              <button onClick={handleCreateProduct} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl">Registrar</button>
+              <button onClick={handleCreateProduct} className="w-full bg-brand-500 text-white py-4 rounded-2xl font-black uppercase shadow-xl">Registrar</button>
             </div>
           </div>
         </div>
@@ -285,13 +285,13 @@ export default function MaestrosView() {
               <div>
                 <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">Nombre Completo</label>
                 <input type="text" value={newUser.username} onChange={e => setNewUser(p => ({ ...p, username: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all" placeholder="Ej: Camila Lopez" />
+                  className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all" placeholder="Ej: Camila Lopez" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">Rol del sistema</label>
                   <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value as any }))}
-                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all">
+                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all">
                     <option value="admin">Administrador</option>
                     <option value="vendedor">Vendedor</option>
                     <option value="operario">Operario</option>
@@ -300,13 +300,13 @@ export default function MaestrosView() {
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">PIN de Acceso</label>
                   <input type="text" maxLength={4} value={newUser.pin} onChange={e => setNewUser(p => ({ ...p, pin: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-blue-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all text-center font-black tracking-[0.5em]" placeholder="0000" />
+                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all text-center font-black tracking-[0.5em]" placeholder="0000" />
                 </div>
               </div>
             </div>
             <div className="p-6 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
               <button onClick={() => setShowUserModal(false)} className="flex-1 py-3 rounded-2xl font-bold text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all uppercase text-xs">Cancelar</button>
-              <button onClick={handleAddUser} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-2xl font-black uppercase text-xs shadow-lg shadow-blue-500/30 active:scale-95 transition-all">Guardar Usuario</button>
+              <button onClick={handleAddUser} className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-3 rounded-2xl font-black uppercase text-xs shadow-lg shadow-brand-500/30 active:scale-95 transition-all">Guardar Usuario</button>
             </div>
           </div>
         </div>
@@ -316,3 +316,4 @@ export default function MaestrosView() {
     </div>
   );
 }
+

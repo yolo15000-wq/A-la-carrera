@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+﻿import { useContext, useState } from "react";
 import { Plus, AlertTriangle, Package, TrendingUp } from "lucide-react";
 import { STOCK_MINIMOS } from "../data/datos";
 import { InventarioContext } from "../context/InventarioContext";
@@ -48,7 +48,7 @@ export default function MateriaPrimaView() {
         
         {isAdmin && (
           <button onClick={() => setShowModal(true)}
-            className="relative z-10 flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
+            className="relative z-10 flex items-center gap-3 bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all">
             <Plus className="h-5 w-5" /> Abastecer Almacén
           </button>
         )}
@@ -63,10 +63,10 @@ export default function MateriaPrimaView() {
           return (
             <div key={item.codigo}
               className={`bg-white dark:bg-gray-900 rounded-[35px] border p-6 transition-all group ${
-                critico ? 'border-red-300 dark:border-red-800 shadow-xl shadow-red-500/5' : 'border-gray-100 dark:border-gray-800 hover:border-blue-500 shadow-sm'}`}>
+                critico ? 'border-red-300 dark:border-red-800 shadow-xl shadow-red-500/5' : 'border-gray-100 dark:border-gray-800 hover:border-brand-500 shadow-sm'}`}>
               
               <div className="flex items-center justify-between mb-6">
-                <div className={`size-12 rounded-2xl flex items-center justify-center ${critico ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
+                <div className={`size-12 rounded-2xl flex items-center justify-center ${critico ? 'bg-red-50 text-red-500' : 'bg-brand-50 text-brand-500'}`}>
                   {critico ? <AlertTriangle size={24} /> : <Package size={24} />}
                 </div>
                 <span className="text-[10px] font-black text-gray-300 uppercase italic">COD: {item.codigo}</span>
@@ -143,3 +143,4 @@ export default function MateriaPrimaView() {
     </div>
   );
 }
+

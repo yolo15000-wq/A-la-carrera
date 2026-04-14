@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import React, { useState } from "react";
 import {
   Home, Factory, Truck, Wallet, Package, BarChart3, Settings, HelpCircle,
@@ -74,7 +74,7 @@ const MainContent = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
       </div>
     );
   }
@@ -189,7 +189,7 @@ const MainContent = () => {
                       setMobileMenuOpen(false);
                     }}
                     className={`flex h-10 w-full items-center rounded-md transition-all duration-150 ${selected === label
-                      ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-l-2 border-blue-600'
+                      ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-300 border-l-2 border-brand-500'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                     <span className="grid w-12 place-content-center"><Icon className="h-4 w-4" /></span>
                     <span className="text-sm font-medium">{label}</span>
@@ -216,7 +216,7 @@ const MainContent = () => {
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setMobileMenuOpen(true)}
-                className="md:hidden p-2 -ml-2 text-gray-500 hover:text-blue-600"
+                className="md:hidden p-2 -ml-2 text-gray-500 hover:text-brand-500"
               >
                 <Menu className="h-6 w-6" />
               </button>
@@ -227,7 +227,7 @@ const MainContent = () => {
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setIsDark(!isDark)}
-                className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-blue-600 transition-colors">
+                className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-brand-500 transition-colors">
                 {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
               <button 
@@ -250,3 +250,4 @@ const MainContent = () => {
 };
 
 export default App;
+

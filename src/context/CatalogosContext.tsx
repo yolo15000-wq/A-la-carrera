@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useCallback } from "react";
+﻿import { createContext, useState, useContext, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { googleSheetsService } from "../services/googleSheetsService";
 
@@ -133,3 +133,4 @@ export function useCatalogos() {
   if (!ctx) throw new Error("useCatalogos debe usarse dentro de CatalogosProvider");
   return ctx;
 }
+

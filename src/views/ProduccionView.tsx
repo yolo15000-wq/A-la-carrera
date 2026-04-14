@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useMemo } from "react";
+﻿import { useState, useContext, useEffect, useMemo } from "react";
 import { Plus, Play, StopCircle, CheckCircle, Package } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
 import { googleSheetsService } from "../services/googleSheetsService";
@@ -133,10 +133,10 @@ export default function ProduccionView() {
             <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Volumen de Planta Hoy</h3>
             <p className="text-3xl font-black text-gray-900 dark:text-white italic tracking-tighter">{totalProducidoHoy.toLocaleString()} <small className="text-xs">UND</small></p>
           </div>
-          <p className="text-[10px] font-bold text-blue-600 uppercase">Fase 1: Preparación</p>
+          <p className="text-[10px] font-bold text-brand-500 uppercase">Fase 1: Preparación</p>
         </div>
         <div className="w-full h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${Math.min(100, (totalProducidoHoy / 1000) * 100)}%` }} />
+          <div className="h-full bg-brand-500 transition-all duration-1000" style={{ width: `${Math.min(100, (totalProducidoHoy / 1000) * 100)}%` }} />
         </div>
       </div>
 
@@ -147,7 +147,7 @@ export default function ProduccionView() {
         </div>
         {!batchActivo && (
           <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
+            className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all">
             <Plus className="h-4 w-4" /> Iniciar Batch
           </button>
         )}
@@ -189,7 +189,7 @@ export default function ProduccionView() {
           {lotes.slice(0, 5).map(l => (
             <div key={l.id_lote} className="p-6 flex items-center justify-between hover:bg-gray-50/50 transition-colors group">
                <div className="flex items-center gap-4">
-                  <div className="size-12 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center text-gray-400 font-black text-xl italic group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <div className="size-12 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center text-gray-400 font-black text-xl italic group-hover:bg-brand-500 group-hover:text-white transition-all">
                     {l.producto.substring(0, 1)}
                   </div>
                   <div>
@@ -225,11 +225,11 @@ export default function ProduccionView() {
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Número de Tandas</label>
                   <input type="number" value={form.tandas || ''} onChange={e => setForm(p => ({ ...p, tandas: parseInt(e.target.value) || 0 }))}
-                    className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-5 outline-none font-black text-3xl text-center text-blue-600" />
+                    className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-5 outline-none font-black text-3xl text-center text-brand-500" />
                 </div>
               </div>
               <button onClick={iniciarBatch} disabled={!form.producto || form.tandas <= 0}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-100 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-blue-500/30 active:scale-95 transition-all">
+                className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-gray-100 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-brand-500/30 active:scale-95 transition-all">
                 INICIAR PLANTA
               </button>
               <button onClick={() => setShowModal(false)} className="w-full text-gray-400 font-bold uppercase text-[10px] tracking-widest">Cancelar</button>
@@ -259,3 +259,4 @@ export default function ProduccionView() {
     </div>
   );
 }
+

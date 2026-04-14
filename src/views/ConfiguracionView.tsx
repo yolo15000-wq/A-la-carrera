@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Plus, Trash2, MapPin, Package, BookOpen, ChevronRight, CheckCircle, Loader2 } from "lucide-react";
 import { useCatalogos } from "../context/CatalogosContext";
 import { MATERIA_PRIMA_INICIAL } from "../data/datos";
@@ -85,7 +85,7 @@ export default function ConfiguracionView() {
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              activeTab === tab.id ? 'bg-white dark:bg-gray-900 text-blue-600 shadow-lg' : 'text-gray-400 hover:text-gray-600'
+              activeTab === tab.id ? 'bg-white dark:bg-gray-900 text-brand-500 shadow-lg' : 'text-gray-400 hover:text-gray-600'
             }`}>
             <tab.icon size={13} /> {tab.label}
           </button>
@@ -125,17 +125,17 @@ export default function ConfiguracionView() {
             </div>
 
             {/* ── Sección de Ingredientes ── */}
-            <div className="rounded-[35px] border-2 border-dashed border-blue-100 bg-blue-50/30 p-8 space-y-6">
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Añadir Ingrediente</p>
+            <div className="rounded-[35px] border-2 border-dashed border-brand-100 bg-brand-50/30 p-8 space-y-6">
+              <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">Añadir Ingrediente</p>
 
               {/* Selector: registrado o nuevo */}
               <div className="flex bg-white rounded-2xl p-1 gap-1 shadow-sm">
                 <button onClick={() => setIngModoCustom(false)}
-                  className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!ingModoCustom ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400'}`}>
+                  className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!ingModoCustom ? 'bg-brand-500 text-white shadow-md' : 'text-gray-400'}`}>
                   Insumo Ya Registrado
                 </button>
                 <button onClick={() => setIngModoCustom(true)}
-                  className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${ingModoCustom ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400'}`}>
+                  className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${ingModoCustom ? 'bg-brand-500 text-white shadow-md' : 'text-gray-400'}`}>
                   Ingrediente Nuevo
                 </button>
               </div>
@@ -167,7 +167,7 @@ export default function ConfiguracionView() {
                   <label className="text-[9px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Cantidad</label>
                   <input type="number" value={ingCant} onChange={e => setIngCant(e.target.value)}
                     placeholder="0"
-                    className="w-full bg-white rounded-2xl px-5 py-4 outline-none font-black text-2xl text-center text-blue-600 shadow-sm" />
+                    className="w-full bg-white rounded-2xl px-5 py-4 outline-none font-black text-2xl text-center text-brand-500 shadow-sm" />
                 </div>
                 <div>
                   <label className="text-[9px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Unidad de Medida</label>
@@ -187,7 +187,7 @@ export default function ConfiguracionView() {
                 </div>
               </div>
 
-              <p className="text-center text-[10px] text-blue-500 font-black uppercase tracking-widest">
+              <p className="text-center text-[10px] text-brand-500 font-black uppercase tracking-widest">
                 {ingTipo === 'grams' ? '⚖️ Medida en Gramos / ML' : '📦 Medida en Unidades enteras'}
               </p>
 
@@ -224,7 +224,7 @@ export default function ConfiguracionView() {
             {/* Botón guardar */}
             <button onClick={handleSaveRecipe}
               disabled={!nombre.trim() || ingredientes.length === 0 || saving}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-3">
+              className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-gray-200 disabled:text-gray-400 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-brand-500/30 transition-all active:scale-95 flex items-center justify-center gap-3">
               {saving ? <><Loader2 size={18} className="animate-spin" /> Guardando...</> : 'REGISTRAR PRODUCTO FINAL'}
             </button>
           </div>
@@ -236,9 +236,9 @@ export default function ConfiguracionView() {
             </h3>
             <div className="space-y-3">
               {recipes.map(r => (
-                <div key={r.id} className="p-5 rounded-3xl border border-gray-100 flex items-center justify-between group hover:border-blue-500 transition-all cursor-pointer">
+                <div key={r.id} className="p-5 rounded-3xl border border-gray-100 flex items-center justify-between group hover:border-brand-500 transition-all cursor-pointer">
                   <div className="flex items-center gap-4">
-                    <div className="size-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 font-black italic text-lg group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    <div className="size-10 bg-brand-50 rounded-xl flex items-center justify-center text-brand-500 font-black italic text-lg group-hover:bg-brand-500 group-hover:text-white transition-all">
                       {r.nombre.charAt(0)}
                     </div>
                     <div>
@@ -246,7 +246,7 @@ export default function ConfiguracionView() {
                       <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{r.ingredientes.length} ingredientes · ${Number(r.precio).toLocaleString('es-CO')}</p>
                     </div>
                   </div>
-                  <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 transition-colors" />
+                  <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-500 transition-colors" />
                 </div>
               ))}
               {recipes.length === 0 && (
@@ -261,9 +261,9 @@ export default function ConfiguracionView() {
       {activeTab === 'productos' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map(p => (
-            <div key={p.id} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm group hover:border-blue-500 transition-all">
+            <div key={p.id} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm group hover:border-brand-500 transition-all">
               <div className="flex items-center justify-between mb-8">
-                <div className="size-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                <div className="size-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-brand-500 group-hover:text-white transition-all">
                   <Package size={28} />
                 </div>
                 <span className="text-[9px] font-black text-gray-300 uppercase italic">ID: {p.id}</span>
@@ -287,7 +287,7 @@ export default function ConfiguracionView() {
             <div className="col-span-full py-24 text-center bg-gray-50 rounded-[40px] border-2 border-dashed border-gray-200">
               <Package className="mx-auto text-gray-200 mb-4" size={60} />
               <p className="text-gray-400 font-black uppercase italic tracking-widest mb-3">El catálogo está vacío</p>
-              <button onClick={() => setActiveTab('recetas')} className="text-blue-600 text-[10px] font-black uppercase tracking-widest hover:underline">
+              <button onClick={() => setActiveTab('recetas')} className="text-brand-500 text-[10px] font-black uppercase tracking-widest hover:underline">
                 + Crear primera receta
               </button>
             </div>
@@ -306,14 +306,14 @@ export default function ConfiguracionView() {
                 placeholder="Nombre de la nueva zona..."
                 className="flex-1 bg-gray-50 dark:bg-gray-800 rounded-3xl px-6 py-5 outline-none font-bold uppercase" />
               <button onClick={() => { if (newRoute) { addRoute(newRoute); setNewRoute(''); } }}
-                className="bg-blue-600 text-white px-8 rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
+                className="bg-brand-500 text-white px-8 rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all">
                 <Plus size={18} />
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {rutas.map((r, i) => (
-                <div key={i} className="p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl flex items-center gap-3 group hover:bg-blue-50 hover:border-blue-100 border border-transparent transition-all">
-                  <MapPin className="text-gray-400 group-hover:text-blue-500 shrink-0" size={18} />
+                <div key={i} className="p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl flex items-center gap-3 group hover:bg-brand-50 hover:border-brand-100 border border-transparent transition-all">
+                  <MapPin className="text-gray-400 group-hover:text-brand-500 shrink-0" size={18} />
                   <span className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">{r}</span>
                 </div>
               ))}
@@ -324,3 +324,4 @@ export default function ConfiguracionView() {
     </div>
   );
 }
+

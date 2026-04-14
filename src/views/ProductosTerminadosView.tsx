@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+﻿import { useContext, useEffect, useState } from "react";
 import { PackageCheck, ArrowUpCircle, TrendingUp, AlertTriangle, X, CheckCircle } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
 
@@ -40,8 +40,8 @@ export default function ProductosTerminadosView() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 flex items-center gap-4 shadow-sm">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-            <PackageCheck className="h-6 w-6 text-blue-600" />
+          <div className="p-3 bg-brand-100 dark:bg-brand-950/30 rounded-xl">
+            <PackageCheck className="h-6 w-6 text-brand-500" />
           </div>
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total en Stock</p>
@@ -75,7 +75,7 @@ export default function ProductosTerminadosView() {
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">Inventario de Productos Listos</h3>
           {mensaje && <p className="text-xs text-emerald-600 font-bold uppercase mt-1 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> {mensaje}</p>}
         </div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer w-full md:w-auto justify-center">
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer w-full md:w-auto justify-center">
             <ArrowUpCircle className="h-4 w-4" /> Ajustar Inventario
         </button>
       </div>
@@ -163,7 +163,7 @@ export default function ProductosTerminadosView() {
             
             <div className="p-4 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
                <button onClick={() => setShowModal(false)} className="flex-1 py-3 text-xs font-bold uppercase text-gray-500 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
-               <button onClick={handleAjuste} className="flex-1 py-3 text-xs font-black uppercase text-white bg-blue-600 rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-md">Confirmar Ajuste</button>
+               <button onClick={handleAjuste} className="flex-1 py-3 text-xs font-black uppercase text-white bg-brand-500 rounded-xl hover:bg-brand-600 active:scale-95 transition-all shadow-md">Confirmar Ajuste</button>
             </div>
           </div>
         </div>
@@ -171,3 +171,4 @@ export default function ProductosTerminadosView() {
     </div>
   );
 }
+

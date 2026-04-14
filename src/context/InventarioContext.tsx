@@ -1,4 +1,4 @@
-import { createContext, useState, useCallback, useEffect } from "react";
+﻿import { createContext, useState, useCallback, useEffect } from "react";
 import type { ReactNode } from "react";
 import { MATERIA_PRIMA_INICIAL, STOCK_CENTRAL_INICIAL } from "../data/datos";
 import type { InsumoBD, RecetaLinea } from "../data/datos";
@@ -232,3 +232,4 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     </InventarioContext.Provider>
   );
 }
+

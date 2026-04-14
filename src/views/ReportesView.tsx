@@ -1,4 +1,4 @@
-import { useContext, useState, useEffect, useMemo } from "react";
+﻿import { useContext, useState, useEffect, useMemo } from "react";
 import { 
   BarChart3, 
   TrendingUp, 
@@ -96,7 +96,7 @@ export default function ReportesView() {
             >
                 {['Diario', 'Semanal', 'Mensual', 'Anual'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
-            <button onClick={handleDownload} className="size-10 bg-blue-600 text-white flex items-center justify-center rounded-xl hover:bg-blue-700 transition-all active:scale-90 shadow-lg shadow-blue-500/20">
+            <button onClick={handleDownload} className="size-10 bg-brand-500 text-white flex items-center justify-center rounded-xl hover:bg-brand-600 transition-all active:scale-90 shadow-lg shadow-brand-500/20">
                 <Download size={18} />
             </button>
         </div>
@@ -122,7 +122,7 @@ export default function ReportesView() {
         <div className="bg-white dark:bg-gray-900 p-8 rounded-[40px] border border-gray-100 dark:border-gray-800 shadow-xl">
            <div className="flex justify-between items-center mb-8">
               <h3 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-500" /> Fuerza de Ventas
+                <Users className="h-5 w-5 text-brand-500" /> Fuerza de Ventas
               </h3>
               <span className="text-[10px] font-black text-gray-400 uppercase italic">Proyección {periodo}</span>
            </div>
@@ -136,12 +136,12 @@ export default function ReportesView() {
                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Rentabilidad Proyectada</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-lg text-blue-600">${v.sales.toLocaleString('es-CO')}</p>
+                      <p className="font-black text-lg text-brand-500">${v.sales.toLocaleString('es-CO')}</p>
                       <p className="text-[9px] text-emerald-600 font-black">Utilidad: ${v.profit.toLocaleString('es-CO')}</p>
                     </div>
                   </div>
                   <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-600 group-hover:bg-blue-400 transition-all duration-1000" style={{ width: `${Math.min(100, (v.sales / (stats.ingresos || 1)) * 100)}%` }} />
+                    <div className="h-full bg-brand-500 group-hover:bg-blue-400 transition-all duration-1000" style={{ width: `${Math.min(100, (v.sales / (stats.ingresos || 1)) * 100)}%` }} />
                   </div>
                 </div>
              ))}
@@ -176,3 +176,4 @@ export default function ReportesView() {
     </div>
   );
 }
+

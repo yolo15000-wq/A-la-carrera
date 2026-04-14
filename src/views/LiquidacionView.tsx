@@ -1,4 +1,4 @@
-import { useContext, useMemo } from "react";
+﻿import { useContext, useMemo } from "react";
 import { CheckCircle, DollarSign, CreditCard, AlertCircle, Users } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
 import { useAuth } from "../context/AuthContext";
@@ -170,3 +170,4 @@ export default function LiquidacionView() {
     </div>
   );
 }
+

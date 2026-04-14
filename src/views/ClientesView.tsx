@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Users, Search, UserPlus, Phone, MapPin,
   Loader2, X, Check, CreditCard
@@ -93,16 +93,16 @@ export default function ClientesView() {
             const deuda = deudaDeCliente(cliente.nombre);
             return (
               <div key={cliente.id || i}
-                className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-blue-500 transition-all group">
+                className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-brand-500 transition-all group">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="size-14 rounded-2xl bg-blue-50 flex items-center justify-center font-black text-2xl text-blue-600 italic group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <div className="size-14 rounded-2xl bg-brand-50 flex items-center justify-center font-black text-2xl text-brand-500 italic group-hover:bg-brand-500 group-hover:text-white transition-all">
                     {cliente.nombre.charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter leading-tight">
                       {cliente.nombre}
                     </h4>
-                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-[2px]">
+                    <span className="text-[9px] font-black text-brand-500 uppercase tracking-[2px]">
                       {cliente.ruta}
                     </span>
                   </div>
@@ -141,7 +141,7 @@ export default function ClientesView() {
             <Users className="mx-auto text-gray-200 mb-4" size={60} />
             <p className="text-gray-400 font-black uppercase italic">Sin clientes aún</p>
             <button onClick={() => setIsModalOpen(true)}
-              className="mt-3 text-blue-600 text-[10px] font-black uppercase tracking-widest hover:underline">
+              className="mt-3 text-brand-500 text-[10px] font-black uppercase tracking-widest hover:underline">
               + Agregar primer cliente
             </button>
           </div>
@@ -169,7 +169,7 @@ export default function ClientesView() {
                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Nombre del Cliente</label>
                 <input required value={formData.nombre} onChange={e => setFormData({...formData, nombre: e.target.value})}
                   placeholder="Ej: Tienda Doña Rosa"
-                  className="w-full px-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold uppercase focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold uppercase focus:ring-2 focus:ring-brand-500" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -177,12 +177,12 @@ export default function ClientesView() {
                   <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Teléfono</label>
                   <input value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})}
                     placeholder="300 000 0000"
-                    className="w-full px-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold focus:ring-2 focus:ring-blue-500" />
+                    className="w-full px-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold focus:ring-2 focus:ring-brand-500" />
                 </div>
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Ruta</label>
                   <select value={formData.ruta} onChange={e => setFormData({...formData, ruta: e.target.value})}
-                    className="w-full px-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold uppercase focus:ring-2 focus:ring-blue-500">
+                    className="w-full px-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold uppercase focus:ring-2 focus:ring-brand-500">
                     {rutas.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
@@ -194,7 +194,7 @@ export default function ClientesView() {
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input value={formData.direccion} onChange={e => setFormData({...formData, direccion: e.target.value})}
                     placeholder="Calle 123 # 45-67..."
-                    className="w-full pl-11 pr-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold focus:ring-2 focus:ring-blue-500" />
+                    className="w-full pl-11 pr-5 py-4 rounded-3xl border border-gray-100 bg-gray-50 dark:bg-gray-800 outline-none text-sm font-bold focus:ring-2 focus:ring-brand-500" />
                 </div>
               </div>
 
@@ -204,7 +204,7 @@ export default function ClientesView() {
                   Cancelar
                 </button>
                 <button type="submit" disabled={saving}
-                  className="flex-1 bg-blue-600 text-white py-4 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                  className="flex-1 bg-brand-500 text-white py-4 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   GUARDAR
                 </button>
@@ -216,3 +216,4 @@ export default function ClientesView() {
     </div>
   );
 }
+
