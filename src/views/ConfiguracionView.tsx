@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Plus, Trash2, Save, MapPin, Package, Settings, ChevronRight } from "lucide-react";
-import { useCatalogos, Ingredient } from "../context/CatalogosContext";
+import { Plus, Trash2, MapPin, Package, Settings, ChevronRight } from "lucide-react";
+import { useCatalogos } from "../context/CatalogosContext";
 import { INSUMOS_CODIGOS } from "../data/datos";
 
+// Definido localmente para evitar problemas con el bundler de producción
+interface Ingredient { nombre: string; cant: number; tipo: 'grams' | 'units'; }
+
 export default function ConfiguracionView() {
-  const { recipes, addRecipe, routes, addRoute, products } = useCatalogos();
+  const { recipes, addRecipe, rutas, addRoute, products } = useCatalogos();
   const [activeTab, setActiveTab] = useState<'recetas' | 'rutas' | 'productos'>('recetas');
   
   // State para nueva receta
@@ -205,7 +208,7 @@ export default function ConfiguracionView() {
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {routes.map((r, i) => (
+              {rutas.map((r, i) => (
                 <div key={i} className="p-6 bg-gray-50 dark:bg-gray-800 rounded-3xl flex items-center justify-between group hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100">
                   <div className="flex items-center gap-3 text-gray-900 dark:text-white font-black uppercase italic tracking-tighter">
                     <MapPin className="text-gray-400 group-hover:text-blue-500" size={18} />
