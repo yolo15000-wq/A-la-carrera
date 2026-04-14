@@ -34,63 +34,68 @@ interface CatalogosContextType {
 
 const CatalogosContext = createContext<CatalogosContextType | undefined>(undefined);
 
+const RUTAS_DEFAULT = ['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente'];
+
 export function CatalogosProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [rutas, setRutas] = useState<string[]>(['Ruta Norte', 'Ruta Sur', 'Ruta Centro', 'Ruta Occidente']);
-  const [loading, setLoading] = useState(true);
+  const [recipes, setRecipes]   = useState<Recipe[]>([]);
+  const [rutas, setRutas]       = useState<string[]>(RUTAS_DEFAULT);
+  const [loading, setLoading]   = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    try {
-      const [sheetProducts, sheetRecipes] = await Promise.all([
-        googleSheetsService.getSheetData<Product>('ProductosTerminados'),
-        googleSheetsService.getSheetData<Recipe>('Recipes')
-      ]);
+    // Carga desde localStorage — nunca falla
+    const savedProducts = await googleSheetsService.getSheetData<Product>('ProductosTerminados');
+    const savedRecipes  = await googleSheetsService.getSheetData<Recipe>('Recipes');
+    const savedRoutes   = await googleSheetsService.getSheetData<string>('Configuracion');
 
-      if (sheetProducts.length > 0) setProducts(sheetProducts);
-      if (sheetRecipes.length > 0) setRecipes(sheetRecipes);
-      
-      const localRoutes = localStorage.getItem('demo_routes');
-      if (localRoutes) setRutas(JSON.parse(localRoutes));
-    } catch (err) {
-      console.error("Error cargando catálogos:", err);
-    } finally {
-      setLoading(false);
-    }
+    if (savedProducts.length > 0) setProducts(savedProducts);
+    if (savedRecipes.length  > 0) setRecipes(savedRecipes);
+    if (savedRoutes.length   > 0) setRutas(savedRoutes);
+
+    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const addProduct = async (product: Product) => {
+  /** Guarda un producto nuevo en el catálogo */
+  const addProduct = useCallback(async (product: Product) => {
     await googleSheetsService.appendRow('ProductosTerminados', product);
-    setProducts(prev => [...prev, product]);
-  };
+    setProducts(prev => {
+      // Evitar duplicados
+      if (prev.some(p => p.id === product.id)) return prev;
+      return [...prev, product];
+    });
+  }, []);
 
-  const addRecipe = async (recipe: Recipe) => {
-    // 1. Guardar receta
+  /** Guarda una receta Y crea el producto automáticamente */
+  const addRecipe = useCallback(async (recipe: Recipe) => {
     await googleSheetsService.appendRow('Recipes', recipe);
-    setRecipes(prev => [...prev, recipe]);
+    setRecipes(prev => {
+      if (prev.some(r => r.id === recipe.id)) return prev;
+      return [...prev, recipe];
+    });
 
-    // 2. Crear producto automáticamente en el catálogo
     const nuevoProducto: Product = {
       id: recipe.id,
       nombre: recipe.nombre,
       stock: 0,
-      precio: recipe.precio
+      precio: recipe.precio,
     };
     await addProduct(nuevoProducto);
-  };
+  }, [addProduct]);
 
-  const addRoute = (route: string) => {
+  /** Agrega una ruta nueva */
+  const addRoute = useCallback((route: string) => {
     setRutas(prev => {
+      if (prev.includes(route)) return prev;
       const next = [...prev, route];
-      localStorage.setItem('demo_routes', JSON.stringify(next));
+      // Guardamos la lista completa en localStorage
+      googleSheetsService.clearSheet('Configuracion');
+      next.forEach(r => googleSheetsService.appendRow('Configuracion', r));
       return next;
     });
-  };
+  }, []);
 
   return (
     <CatalogosContext.Provider value={{ products, recipes, rutas, addRecipe, addProduct, addRoute, loading }}>
@@ -100,7 +105,7 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
 }
 
 export function useCatalogos() {
-  const context = useContext(CatalogosContext);
-  if (!context) throw new Error("useCatalogos debe usarse dentro de un CatalogosProvider");
-  return context;
+  const ctx = useContext(CatalogosContext);
+  if (!ctx) throw new Error("useCatalogos debe usarse dentro de CatalogosProvider");
+  return ctx;
 }
