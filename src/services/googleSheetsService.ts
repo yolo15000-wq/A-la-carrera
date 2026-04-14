@@ -17,15 +17,15 @@ export type SheetName =
 
 // Mapeo: nombre interno → tabla en Supabase
 const TABLE: Record<SheetName, string> = {
-  Inventario:          'inventario',
-  Produccion:          'produccion',
-  Ventas:              'ventas',
-  Liquidacion:         'liquidaciones',
+  Inventario: 'inventario',
+  Produccion: 'produccion',
+  Ventas: 'ventas',
+  Liquidacion: 'liquidaciones',
   ProductosTerminados: 'productos',
-  Cartera:             'cartera',
-  Clientes:            'clientes',
-  Recipes:             'recetas',
-  Configuracion:       'rutas',
+  Cartera: 'cartera',
+  Clientes: 'clientes',
+  Recipes: 'recetas',
+  Configuracion: 'rutas',
 };
 
 // Clave de caché local

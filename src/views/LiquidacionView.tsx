@@ -1,5 +1,5 @@
 import { useContext, useMemo } from "react";
-import { CheckCircle, DollarSign, CreditCard, AlertCircle } from "lucide-react";
+import { CheckCircle, DollarSign, CreditCard, AlertCircle, Users } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
 import { useAuth } from "../context/AuthContext";
 
@@ -80,12 +80,12 @@ export default function LiquidacionView() {
         </div>
 
         <div className="divide-y divide-gray-50">
-          {creditos.length === 0 && (
+          {misCar.length === 0 && (
             <div className="p-20 text-center">
                <p className="text-gray-300 font-black uppercase italic tracking-widest">No hay créditos registrados</p>
             </div>
           )}
-          {creditos.map((c, i) => {
+          {misCar.map((c, i) => {
             const isVencida = vencidas.some(v => v.id_credito === c.id_credito);
             return (
               <div key={c.id_credito || i} className="p-6 flex flex-wrap items-center justify-between hover:bg-gray-50/50 transition-colors gap-4">
