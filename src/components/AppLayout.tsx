@@ -138,13 +138,13 @@ const MainContent = () => {
           {/* Logo */}
           <div className="border-b border-gray-200 dark:border-gray-800 p-3">
             <div className="flex items-center gap-3">
-              <div className="grid size-10 shrink-0 place-content-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 shadow">
-                <Factory className="h-5 w-5 text-white" />
+              <div className="shrink-0 size-10 rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                <img src="/marrano.svg" alt="Logo" className="size-8 object-contain" />
               </div>
               {sidebarOpen && (
                 <div>
-                  <p className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">A la Carrera</p>
-                  <p className="text-xs text-blue-600 font-bold uppercase tracking-tighter">{user.role}</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-gray-100 leading-tight uppercase italic tracking-tighter">A la Carrera</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#E5007E' }}>{user.role}</p>
                 </div>
               )}
               {sidebarOpen && <ChevronDown className="ml-auto h-4 w-4 text-gray-400" />}
@@ -163,14 +163,16 @@ const MainContent = () => {
                     setMobileMenuOpen(false);
                   }}
                   className={`relative flex h-10 w-full items-center rounded-md transition-all duration-150 ${active
-                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-l-2 border-blue-600'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                    ? 'border-l-2'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                  style={active ? { background: 'rgba(229,0,126,0.12)', borderColor: '#E5007E', color: '#E5007E' } : {}}
+                >
                   <span className="grid w-12 place-content-center">
                     <Icon className="h-4 w-4" />
                   </span>
                   {sidebarOpen && <span className="text-sm font-medium">{label}</span>}
                   {badge > 0 && sidebarOpen && (
-                    <span className="absolute right-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white font-bold px-1">{badge}</span>
+                    <span className="absolute right-3 flex h-5 min-w-5 items-center justify-center rounded-full text-[10px] text-white font-bold px-1" style={{ background: '#E5007E' }}>{badge}</span>
                   )}
                 </button>
               );
@@ -220,7 +222,7 @@ const MainContent = () => {
               </button>
               <div>
                 <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100 leading-none">{selected}</h1>
-                <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400">Sesión: <span className="font-bold text-blue-600 uppercase tracking-tighter">{user.name}</span></p>
+                <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400">Sesión: <span className="font-black uppercase tracking-tighter" style={{ color: '#E5007E' }}>{user.name}</span></p>
               </div>
             </div>
             <div className="flex items-center gap-2">

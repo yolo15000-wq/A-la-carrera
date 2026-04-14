@@ -1,124 +1,112 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Lock, Factory, ShieldCheck, Loader2 } from "lucide-react";
+import { Loader2, Delete } from "lucide-react";
+
+// Color de marca: rgb(229, 0, 126) — magenta A la Carrera
+const BRAND = "#E5007E";
 
 export default function LoginView() {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState(false);
+  const [pin, setPin]       = useState("");
+  const [error, setError]   = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pin) return;
-
+  const handleLogin = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (pin.length < 4) return;
     setLoading(true);
     setError(false);
-    
     const success = await login(pin);
-    if (!success) {
-      setError(true);
-      setPin("");
-    }
+    if (!success) { setError(true); setPin(""); }
     setLoading(false);
   };
 
-  const addDigit = (digit: string) => {
-    if (pin.length < 4) {
-      setPin(prev => prev + digit);
-    }
+  const addDigit = (d: string) => {
+    if (pin.length < 4) setPin(p => p + d);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Logo Section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center size-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 shadow-xl shadow-blue-500/20 mb-4">
-            <Factory className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tight">A la Carrera</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2 font-medium">Sistema de Control Operativo</p>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4"
+      style={{ background: "linear-gradient(135deg, #0a0a0a 0%, #1a001a 50%, #0a0a0a 100%)" }}>
+
+      {/* Logo + nombre de marca */}
+      <div className="flex flex-col items-center mb-10 select-none">
+        <img
+          src="/marrano.svg"
+          alt="A la Carrera"
+          className="w-36 h-36 mb-4 drop-shadow-2xl"
+          style={{ filter: "drop-shadow(0 0 24px rgba(229,0,126,0.5))" }}
+        />
+        <h1 className="text-4xl font-black uppercase tracking-tighter text-white italic"
+          style={{ letterSpacing: "-0.04em" }}>
+          A la Carrera
+        </h1>
+        <p className="text-xs font-bold uppercase tracking-[4px] mt-1"
+          style={{ color: BRAND }}>
+          Sistema de Control Operativo
+        </p>
+      </div>
+
+      {/* Tarjeta de login */}
+      <div className="w-full max-w-xs bg-white/5 backdrop-blur-xl rounded-[40px] border border-white/10 p-8 shadow-2xl">
+
+        {/* Barra de marca arriba */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-1 rounded-full"
+          style={{ background: BRAND }} />
+
+        {/* Puntos PIN */}
+        <div className="flex justify-center gap-4 mb-8">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i}
+              className="size-14 rounded-2xl flex items-center justify-center text-2xl font-black transition-all duration-200"
+              style={{
+                background: pin[i] ? "rgba(229,0,126,0.15)" : "rgba(255,255,255,0.05)",
+                border: `2px solid ${pin[i] ? BRAND : error ? "#f43f5e" : "rgba(255,255,255,0.1)"}`,
+                color: BRAND,
+                boxShadow: pin[i] ? `0 0 20px rgba(229,0,126,0.3)` : "none",
+              }}>
+              {pin[i] ? "●" : ""}
+            </div>
+          ))}
         </div>
 
-        {/* Card */}
-        <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 shadow-2xl border border-gray-100 dark:border-gray-800 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600" />
-          
-          <div className="text-center mb-10">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Panel de Acceso</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Ingresa tu PIN de seguridad</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-8">
-            {/* PIN Display */}
-            <div className="flex justify-center gap-4">
-              {[0, 1, 2, 3].map((i) => (
-                <div 
-                  key={i}
-                  className={`size-14 rounded-2xl border-2 flex items-center justify-center text-2xl font-black transition-all duration-300 ${
-                    pin[i] 
-                      ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-600 shadow-lg shadow-blue-500/10' 
-                      : error ? 'border-rose-300 bg-rose-50' : 'border-gray-100 dark:border-gray-800 text-gray-300'
-                  }`}
-                >
-                  {pin[i] ? '●' : ''}
-                </div>
-              ))}
-            </div>
-
-            {error && (
-              <p className="text-center text-xs font-bold text-rose-600 animate-bounce">PIN INCORRECTO. INTENTA DE NUEVO.</p>
-            )}
-
-            {/* Numeric Keypad */}
-            <div className="grid grid-cols-3 gap-3">
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'].map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    if (key === 'C') setPin("");
-                    else if (key === 'OK') handleLogin({ preventDefault: () => {} } as any);
-                    else addDigit(key);
-                  }}
-                  disabled={loading}
-                  className={`h-16 rounded-2xl text-xl font-bold transition-all active:scale-90 flex items-center justify-center ${
-                    key === 'OK' 
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20 col-span-1' 
-                      : key === 'C' ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 hover:bg-gray-200' : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200 hover:border-blue-300'
-                  }`}
-                >
-                  {loading && key === 'OK' ? <Loader2 className="h-6 w-6 animate-spin" /> : key}
-                </button>
-              ))}
-            </div>
-          </form>
-
-          {/* Footer Info */}
-          <div className="mt-10 pt-6 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-2 text-gray-400">
-               <ShieldCheck className="h-4 w-4" />
-               <span className="text-[10px] uppercase font-bold tracking-widest">Nivel de Seguridad</span>
-            </div>
-            <div className="text-right">
-               <span className="text-[10px] font-black text-blue-600 uppercase">Encriptado AES</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Hints for the user in development */}
-        <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30">
-          <p className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase mb-2 flex items-center gap-1">
-            <Lock className="h-3 w-3" /> Credenciales de Prueba
+        {error && (
+          <p className="text-center text-[10px] font-black uppercase tracking-widest text-rose-400 mb-4 animate-bounce">
+            PIN incorrecto — intenta de nuevo
           </p>
-          <div className="grid grid-cols-3 gap-2 text-[10px] text-blue-600 font-bold">
-            <div>Admin: 1234</div>
-            <div>Vendedor: 4321</div>
-            <div>Operario: 0000</div>
-          </div>
+        )}
+
+        {/* Teclado numérico */}
+        <div className="grid grid-cols-3 gap-3">
+          {['1','2','3','4','5','6','7','8','9'].map(k => (
+            <button key={k} type="button" onClick={() => addDigit(k)} disabled={loading}
+              className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white text-xl font-black transition-all active:scale-90 hover:bg-white/10 hover:border-white/20">
+              {k}
+            </button>
+          ))}
+
+          {/* Fila inferior: borrar · 0 · OK */}
+          <button type="button" onClick={() => setPin(p => p.slice(0, -1))} disabled={loading}
+            className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white/60 transition-all active:scale-90 hover:bg-white/10 flex items-center justify-center">
+            <Delete size={18} />
+          </button>
+
+          <button type="button" onClick={() => addDigit('0')} disabled={loading}
+            className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white text-xl font-black transition-all active:scale-90 hover:bg-white/10">
+            0
+          </button>
+
+          <button type="button" onClick={() => handleLogin()} disabled={loading || pin.length < 4}
+            className="h-14 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-90 disabled:opacity-30 flex items-center justify-center"
+            style={{ background: pin.length === 4 ? BRAND : "rgba(229,0,126,0.3)", boxShadow: pin.length === 4 ? `0 8px 30px rgba(229,0,126,0.5)` : "none" }}>
+            {loading ? <Loader2 size={20} className="animate-spin" /> : "OK"}
+          </button>
         </div>
       </div>
+
+      <p className="mt-8 text-[9px] text-white/20 font-bold uppercase tracking-[3px]">
+        © A la Carrera · Todos los derechos reservados
+      </p>
     </div>
   );
 }
