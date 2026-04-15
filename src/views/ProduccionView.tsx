@@ -1,4 +1,4 @@
-﻿import { useState, useContext, useEffect, useMemo } from "react";
+import { useState, useContext, useEffect, useMemo } from "react";
 import { Plus, Play, StopCircle, CheckCircle, Package } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
 import { googleSheetsService } from "../services/googleSheetsService";
@@ -20,7 +20,7 @@ interface LoteBD {
 export default function ProduccionView() {
   const { user } = useAuth();
   const { recipes } = useCatalogos();
-  const { descontarInsumos, agregarProductoTerminado } = useContext(InventarioContext);
+  const { descontarInsumos, agregarProductoTerminado, descontarInsumoExtra } = useContext(InventarioContext);
   const [lotes, setLotes] = useState<LoteBD[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ producto: '', tandas: 0 });
@@ -29,6 +29,7 @@ export default function ProduccionView() {
   const [loading, setLoading] = useState(true);
   const [showFinalizarModal, setShowFinalizarModal] = useState(false);
   const [unidadesReales, setUnidadesReales] = useState(0);
+  const [bolsasUtilizadas, setBolsasUtilizadas] = useState(0);
 
   useEffect(() => {
     async function loadLotes() {
@@ -90,6 +91,7 @@ export default function ProduccionView() {
   const prepararFinalizacion = () => {
     if (!batchActivo) return;
     setUnidadesReales(0);
+    setBolsasUtilizadas(0);
     setShowFinalizarModal(true);
   };
 
@@ -114,6 +116,15 @@ export default function ProduccionView() {
 
     await googleSheetsService.updateRow('Produccion', 'id_lote', id, updates);
     await agregarProductoTerminado(batchActivo.producto, unidadesReales);
+
+    if (bolsasUtilizadas > 0) {
+      await descontarInsumoExtra("bolsas", bolsasUtilizadas);
+    }
+    
+    // Descontar las bolsas utilizadas del inventario de materia prima
+    if (bolsasUtilizadas > 0) {
+      await descontarInsumoExtra("Bolsas", bolsasUtilizadas);
+    }
     
     setLotes(prev => prev.map(l => l.id_lote === id ? { ...l, ...updates } : l));
     setMensajeExito(`Éxito: +${unidadesReales} ${batchActivo.producto}`);
@@ -245,11 +256,24 @@ export default function ProduccionView() {
               <div className="size-20 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600 mb-4"><CheckCircle size={40} /></div>
               <h2 className="text-2xl font-black uppercase italic">Reportar Unidades</h2>
               <p className="text-xs text-gray-500 font-bold uppercase">Lote: {batchActivo.producto}</p>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest text-left">Unidades Producidas</label>
+                <input type="number" value={unidadesReales || ''} onChange={e => setUnidadesReales(parseInt(e.target.value) || 0)}
+                  placeholder="0"
+                  className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-6 outline-none font-black text-4xl text-center text-green-600 mb-4" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest text-left">Bolsas Empacadas <span className="text-gray-300">(opcional)</span></label>
+                <input type="number" value={bolsasUtilizadas || ''} onChange={e => setBolsasUtilizadas(parseInt(e.target.value) || 0)}
+                  placeholder="0"
+                  className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-6 outline-none font-black text-3xl text-center text-brand-500" />
+              </div>
               
-              <input type="number" value={unidadesReales || ''} onChange={e => setUnidadesReales(parseInt(e.target.value) || 0)}
-                className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-6 outline-none font-black text-5xl text-center text-green-600" />
-              
-              <button onClick={finalizarBatch} className="w-full bg-green-600 hover:bg-green-700 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-green-600/20 active:scale-95 transition-all">
+              <button 
+                onClick={finalizarBatch} 
+                disabled={unidadesReales <= 0}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-green-600/20 active:scale-95 transition-all mt-6">
                 FINALIZAR Y ALMACENAR
               </button>
             </div>

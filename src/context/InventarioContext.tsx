@@ -1,4 +1,4 @@
-﻿import { createContext, useState, useCallback, useEffect } from "react";
+import { createContext, useState, useCallback, useEffect } from "react";
 import type { ReactNode } from "react";
 import { MATERIA_PRIMA_INICIAL, STOCK_CENTRAL_INICIAL } from "../data/datos";
 import type { InsumoBD, RecetaLinea } from "../data/datos";
@@ -38,6 +38,7 @@ interface InventarioContextType {
   insumos: InsumoBD[];
   descontarInsumos: (ingredientes: RecetaLinea[], tandas: number) => void;
   agregarInsumo: (codigo: string, cantidad: number) => void;
+  descontarInsumoExtra: (nombreOcCodigo: string, cantidad: number) => void;
   productosTerminados: ProductoTerminado[];
   agregarProductoTerminado: (id: string, cantidad: number) => void;
   descontarProductoTerminado: (id: string, cantidad: number) => void;
@@ -51,6 +52,7 @@ export const InventarioContext = createContext<InventarioContextType>({
   insumos: MATERIA_PRIMA_INICIAL,
   descontarInsumos: () => {},
   agregarInsumo: () => {},
+  descontarInsumoExtra: () => {},
   productosTerminados: PRODUCTOS_TERMINADOS_INICIALES,
   agregarProductoTerminado: () => {},
   descontarProductoTerminado: () => {},
@@ -177,6 +179,17 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const descontarInsumoExtra = useCallback((nombreOcCodigo: string, cantidad: number) => {
+    setInsumos(prev => prev.map(i => {
+      if (i.codigo.toLowerCase() === nombreOcCodigo.toLowerCase() || i.insumo.toLowerCase().includes(nombreOcCodigo.toLowerCase())) {
+        const nuevaExistencia = Math.max(0, i.existencia - cantidad);
+        googleSheetsService.updateRow('Inventario', 'codigo', i.codigo, { existencia: nuevaExistencia });
+        return { ...i, existencia: nuevaExistencia };
+      }
+      return i;
+    }));
+  }, []);
+
   const agregarProductoTerminado = useCallback((idOrName: string, cantidad: number) => {
     setProductosTerminados(prev => {
       const cleanSearch = idOrName.toLowerCase().trim();
@@ -223,7 +236,7 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
 
   return (
     <InventarioContext.Provider value={{
-      insumos, descontarInsumos, agregarInsumo,
+      insumos, descontarInsumos, agregarInsumo, descontarInsumoExtra,
       productosTerminados, agregarProductoTerminado, descontarProductoTerminado,
       creditos, registrarCredito, marcarPagoCredito,
       loading,

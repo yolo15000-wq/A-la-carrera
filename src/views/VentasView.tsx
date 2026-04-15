@@ -52,6 +52,7 @@ export default function VentasView() {
 
   // ── Formulario liquidación ────────────────────────────────────────────────
   const [showLiqModal, setShowLiqModal] = useState(false);
+  const [isVentaParcial, setIsVentaParcial] = useState(false);
   const [salidaActual, setSalidaActual] = useState<SalidaRuta | null>(null);
   const [devolucion, setDevolucion]     = useState(0);
   const [cantidadContado, setCantidadContado] = useState(0);
@@ -69,7 +70,9 @@ export default function VentasView() {
   const totalCredito   = creditosItems.reduce((s, c) => s + c.cantidad, 0);
   const totalVendido   = cantidadContado + totalCredito;
   const saldo          = totalLlevado - devolucion - totalVendido;
-  const formularioOk   = saldo === 0 && totalVendido > 0;
+  const formularioOk   = isVentaParcial 
+    ? (totalVendido > 0 && totalVendido <= totalLlevado)
+    : (saldo === 0 && (totalVendido > 0 || devolucion > 0));
 
   // ── Carga de datos ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -127,7 +130,8 @@ export default function VentasView() {
   };
 
   // ── Abrir modal liquidación ──────────────────────────────────────────────
-  const abrirLiq = (salida: SalidaRuta) => {
+  const abrirLiq = (salida: SalidaRuta, parcial = false) => {
+    setIsVentaParcial(parcial);
     setSalidaActual(salida);
     setDevolucion(0);
     setCantidadContado(0);
@@ -213,13 +217,19 @@ export default function VentasView() {
     }
 
     // 3. Devolucion → reintegrar stock
-    if (devolucion > 0) {
+    if (devolucion > 0 && !isVentaParcial) {
       await agregarProductoTerminado(salidaActual.producto, devolucion);
     }
 
-    // 4. Marcar la salida como liquidada
-    await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { estado: 'Liquidado' });
-    setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, estado: 'Liquidado' as const } : s));
+    // 4. Marcar la salida como liquidada o restar la cantidad si es parcial
+    if (isVentaParcial) {
+      const nuevaCantidad = salidaActual.cantidad_salida - totalVendido;
+      await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { cantidad_salida: nuevaCantidad });
+      setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, cantidad_salida: nuevaCantidad } : s));
+    } else {
+      await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { estado: 'Liquidado' });
+      setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, estado: 'Liquidado' as const } : s));
+    }
 
     setShowLiqModal(false);
     setSalidaActual(null);
@@ -285,12 +295,12 @@ export default function VentasView() {
                 </div>
 
                 {/* Botón crédito durante ruta */}
-                <button onClick={() => abrirLiq(s)}
+                <button onClick={() => abrirLiq(s, true)}
                   className="w-full mb-3 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 py-4 rounded-[20px] font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
                   <CreditCard size={16} /> Registrar Venta (parcial)
                 </button>
 
-                <button onClick={() => abrirLiq(s)}
+                <button onClick={() => abrirLiq(s, false)}
                   className="w-full bg-brand-500 hover:bg-brand-600 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
                   <PackageCheck size={18} /> Liquidar Todo
                 </button>
@@ -422,7 +432,7 @@ export default function VentasView() {
               {/* Cabecera */}
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-2xl font-black uppercase italic tracking-tighter">Liquidar Ruta</h2>
+                  <h2 className="text-2xl font-black uppercase italic tracking-tighter">{isVentaParcial ? 'Venta Parcial' : 'Liquidar Ruta'}</h2>
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">{salidaActual.producto} · {salidaActual.ruta}</p>
                 </div>
                 <div className="text-right">
@@ -432,7 +442,8 @@ export default function VentasView() {
               </div>
 
               {/* Indicador de balance */}
-              <div className={`p-5 rounded-3xl border-2 flex items-center justify-between ${saldo === 0 ? 'border-emerald-300 bg-emerald-50' : saldo > 0 ? 'border-amber-300 bg-amber-50' : 'border-rose-300 bg-rose-50'}`}>
+              {!isVentaParcial && (
+                <div className={`p-5 rounded-3xl border-2 flex items-center justify-between ${saldo === 0 ? 'border-emerald-300 bg-emerald-50' : saldo > 0 ? 'border-amber-300 bg-amber-50' : 'border-rose-300 bg-rose-50'}`}>
                 <div className="space-y-1">
                   <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Balance: Llevados = Vendidos + Devueltos</p>
                   <p className="font-black text-lg">
@@ -449,14 +460,17 @@ export default function VentasView() {
                   {saldo === 0 ? '✅ OK' : `⚠️ Faltan ${saldo}`}
                 </div>
               </div>
+              )}
 
               {/* Devoluciones */}
+              {!isVentaParcial && (
               <div>
                 <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Unidades Devueltas / Mermas</label>
                 <input type="number" value={devolucion || ''} min={0} max={totalLlevado}
                   onChange={e => setDevolucion(parseInt(e.target.value) || 0)}
                   className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-brand-400 text-center" />
               </div>
+              )}
 
               {/* Ventas de CONTADO */}
               <div className="p-8 bg-emerald-50/50 rounded-[35px] border border-emerald-100 space-y-4">
@@ -544,14 +558,14 @@ export default function VentasView() {
                   <div className="flex items-center gap-2 p-4 bg-amber-50 rounded-2xl border border-amber-200">
                     <AlertCircle size={16} className="text-amber-500" />
                     <p className="text-[10px] font-black text-amber-600 uppercase">
-                      {saldo > 0 ? `Faltan ${saldo} unidades por asignar (contado o crédito)` : saldo < 0 ? `Excediste en ${Math.abs(saldo)} unidades` : 'Completa los datos'}
+                      {isVentaParcial ? `Ingresa unidades vendidas (Máx ${totalLlevado})` : saldo > 0 ? `Faltan ${saldo} unidades por asignar (contado o crédito)` : saldo < 0 ? `Excediste en ${Math.abs(saldo)} unidades` : 'Completa los datos'}
                     </p>
                   </div>
                 )}
                 <button onClick={registrarLiquidacion} disabled={!formularioOk || saving}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
                   {saving ? <Loader2 size={18} className="animate-spin" /> : <PackageCheck size={18} />}
-                  CERRAR LIQUIDACIÓN
+                  {isVentaParcial ? 'GUARDAR VENTA PARCIAL' : 'CERRAR LIQUIDACIÓN'}
                 </button>
                 <button onClick={() => setShowLiqModal(false)} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancelar</button>
               </div>
