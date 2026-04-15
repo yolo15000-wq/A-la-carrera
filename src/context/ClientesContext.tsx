@@ -1,6 +1,6 @@
-﻿import { createContext, useState, useContext, useEffect, useCallback } from "react";
+import { createContext, useState, useContext, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
-import { googleSheetsService } from "../services/googleSheetsService";
+import { supabase } from "../lib/supabase";
 
 export interface Cliente {
   id?: string;
@@ -8,7 +8,7 @@ export interface Cliente {
   telefono: string;
   direccion: string;
   ruta: string;
-  vendedor?: string;   // ← vendedor que lo atendió
+  vendedor?: string;
 }
 
 interface ClientesContextType {
@@ -27,9 +27,10 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function loadClientes() {
       try {
-        const rows = await googleSheetsService.getSheetData<any>('Clientes');
-        if (rows.length > 0) {
-          setClientes(rows.map((r: any) => ({
+        const { data, error } = await supabase.from('clientes').select('*').order('nombre');
+        if (error) throw error;
+        if (data) {
+          setClientes(data.map((r: any) => ({
             id:        r.id ?? '',
             nombre:    r.nombre ?? '',
             telefono:  r.telefono ?? '',
@@ -47,20 +48,40 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
     loadClientes();
   }, []);
 
-  const agregarCliente = useCallback(async (nuevo: Cliente) => {
-    const id = `CLI-${Date.now()}`;
-    const row = { ...nuevo, id };
-    setClientes(prev => {
-      // Evitar duplicados por nombre
-      if (prev.some(c => c.nombre.toLowerCase() === nuevo.nombre.toLowerCase())) return prev;
-      return [row, ...prev];
-    });
-    return await googleSheetsService.appendRow('Clientes', row);
-  }, []);
+  const agregarCliente = useCallback(async (nuevo: Cliente): Promise<boolean> => {
+    // Evitar duplicados localmente
+    if (clientes.some(c => c.nombre.toLowerCase() === nuevo.nombre.toLowerCase())) {
+      return true; // ya existe, no es un error
+    }
+    try {
+      // Insertar en Supabase — deja que Supabase genere el UUID
+      const { data, error } = await supabase
+        .from('clientes')
+        .insert([{
+          nombre:    nuevo.nombre,
+          telefono:  nuevo.telefono,
+          direccion: nuevo.direccion,
+          ruta:      nuevo.ruta,
+          vendedor:  nuevo.vendedor ?? '',
+        }])
+        .select()
+        .single();
 
-  const actualizarCliente = useCallback(async (id: string, data: Partial<Cliente>) => {
+      if (error) throw error;
+
+      // Agregar al estado local con el ID que devolvió Supabase
+      setClientes(prev => [{ ...nuevo, id: data.id }, ...prev]);
+      return true;
+    } catch (err) {
+      console.error("Error al guardar cliente:", err);
+      return false;
+    }
+  }, [clientes]);
+
+  const actualizarCliente = useCallback(async (id: string, data: Partial<Cliente>): Promise<boolean> => {
     setClientes(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
-    return await googleSheetsService.updateRow('Clientes', 'id', id, data);
+    const { error } = await supabase.from('clientes').update(data).eq('id', id);
+    return !error;
   }, []);
 
   return (
@@ -75,4 +96,3 @@ export function useClientes() {
   if (!ctx) throw new Error("useClientes debe usarse dentro de ClientesProvider");
   return ctx;
 }
-

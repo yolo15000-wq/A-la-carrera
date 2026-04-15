@@ -1,4 +1,4 @@
-﻿import { useState, useContext, useEffect, useMemo } from "react";
+import { useState, useContext, useEffect, useMemo } from "react";
 import {
   Plus, Truck, DollarSign, CreditCard, PackageCheck,
   Trash2, ShoppingBag, UserCheck, AlertCircle, CheckCircle2, Loader2
@@ -268,7 +268,7 @@ export default function VentasView() {
         activeTab === 'salidas' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {salidasFiltradas.filter(s => s.estado === 'En Ruta').map(s => (
-              <div key={String(s.id)} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-brand-500 transition-all group">
+              <div key={String(s.id)} className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 p-8 shadow-sm hover:border-brand-300 transition-all group">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <span className="text-[10px] font-black text-brand-500 uppercase tracking-[2px]">{s.ruta}</span>
@@ -276,18 +276,27 @@ export default function VentasView() {
                   </div>
                   <div className="p-3 bg-brand-50 text-brand-500 rounded-2xl group-hover:bg-brand-500 group-hover:text-white transition-all"><Truck size={20} /></div>
                 </div>
-                <div className="flex items-end justify-between mb-8">
+                <div className="flex items-end justify-between mb-6">
                   <div>
                     <p className="text-[10px] text-gray-400 font-black uppercase mb-1">Carga</p>
                     <p className="text-4xl font-black text-gray-900 dark:text-white italic tracking-tighter">{s.cantidad_salida} <small className="text-xs font-bold">UND</small></p>
                   </div>
                   <p className="text-xs font-black text-gray-500 uppercase">{s.vendedor}</p>
                 </div>
-                <button onClick={() => abrirLiq(s)} className="w-full bg-brand-500 hover:bg-brand-600 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
-                  <PackageCheck size={18} /> Liquidar
+
+                {/* Botón crédito durante ruta */}
+                <button onClick={() => abrirLiq(s)}
+                  className="w-full mb-3 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 py-4 rounded-[20px] font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
+                  <CreditCard size={16} /> Registrar Venta (parcial)
+                </button>
+
+                <button onClick={() => abrirLiq(s)}
+                  className="w-full bg-brand-500 hover:bg-brand-600 text-white py-5 rounded-[22px] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                  <PackageCheck size={18} /> Liquidar Todo
                 </button>
               </div>
             ))}
+
             {salidasFiltradas.filter(s => s.estado === 'En Ruta').length === 0 && (
               <div className="col-span-full py-20 text-center text-gray-300 font-black uppercase italic">No hay rutas activas</div>
             )}

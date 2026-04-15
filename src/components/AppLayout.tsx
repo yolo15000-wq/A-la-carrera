@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import React, { useState } from "react";
 import {
   Home, Factory, Truck, Wallet, Package, BarChart3, Settings, HelpCircle,
@@ -19,7 +19,7 @@ import MaestrosView from "../views/MaestrosView";
 import { Database } from "lucide-react";
 
 const MENU_ITEMS = [
-  { icon: Home,         label: 'Dashboard',             badge: 0 },
+  { icon: Home,         label: 'Inicio',                badge: 0 },
   { icon: Factory,      label: 'Producción',            badge: 0 },
   { icon: Truck,        label: 'Ventas y Rutas',        badge: 2 },
   { icon: Wallet,       label: 'Liquidación',           badge: 0 },
@@ -58,12 +58,12 @@ export const App = () => {
 const MainContent = () => {
   const { user, logout, isLoading } = useAuth();
   const [isDark, setIsDark] = useState(false);
-  const [selected, setSelected] = useState("Dashboard");
+  const [selected, setSelected] = useState("Inicio");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
-    setSelected("Dashboard");
+    setSelected("Inicio");
     logout();
   };
 
@@ -86,8 +86,8 @@ const MainContent = () => {
   // Filtrar menú según rol
   const filteredMenu = MENU_ITEMS.filter(item => {
     if (user.role === 'admin') return true;
-    if (user.role === 'vendedor') return ['Ventas y Rutas', 'Liquidación', 'Clientes', 'Cartera', 'Dashboard'].includes(item.label);
-    if (user.role === 'operario') return ['Producción', 'Materia Prima', 'Producto Terminado', 'Dashboard'].includes(item.label);
+    if (user.role === 'vendedor') return ['Ventas y Rutas', 'Liquidación', 'Clientes', 'Cartera', 'Inicio'].includes(item.label);
+    if (user.role === 'operario') return ['Producción', 'Materia Prima', 'Producto Terminado', 'Inicio'].includes(item.label);
     return false;
   });
 
@@ -97,12 +97,11 @@ const MainContent = () => {
   });
 
   const renderView = () => {
-    // Protección de seguridad adicional: Si el usuario actual no tiene permiso para la vista seleccionada, forzar Dashboard
     const isAllowed = [...filteredMenu, ...filteredAdminMenu].some(item => item.label === selected);
-    const viewToRender = isAllowed ? selected : 'Dashboard';
+    const viewToRender = isAllowed ? selected : 'Inicio';
 
     switch (viewToRender) {
-      case 'Dashboard':           return <DashboardView onViewChange={setSelected} />;
+      case 'Inicio':              return <DashboardView onViewChange={setSelected} />;
       case 'Producción':          return <ProduccionView />;
       case 'Ventas y Rutas':      return <VentasView />;
       case 'Liquidación':         return <LiquidacionView />;
