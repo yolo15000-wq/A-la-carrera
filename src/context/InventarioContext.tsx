@@ -27,6 +27,16 @@ export interface Credito {
   fecha_registro: string;
 }
 
+export interface Pedido {
+  id?: string;
+  fecha: string;
+  vendedor: string;
+  cliente: string;
+  producto: string;
+  cantidad: number;
+  estado: 'Pendiente' | 'Entregado' | 'Cancelado';
+}
+
 const PRODUCTOS_TERMINADOS_INICIALES: ProductoTerminado[] = [
   { id: 'chorizo-s',   nombre: 'Chorizo S',    descripcion: '12 unidades por bolsa',  stock: 0, unidad: 'bolsas', precio_venta: 12000, stock_minimo: 10 },
   { id: 'chorizo-m',   nombre: 'Chorizo M',    descripcion: '5 unidades por bolsa',   stock: 0,  unidad: 'bolsas', precio_venta: 8000,  stock_minimo: 5  },
@@ -46,6 +56,9 @@ interface InventarioContextType {
   registrarCredito: (nuevo: Credito) => void;
   marcarPagoCredito: (id_credito: string | number) => void;
   loading: boolean;
+  pedidos: Pedido[];
+  registrarPedido: (nuevo: Pedido) => Promise<void>;
+  actualizarPedido: (id: string, updates: Partial<Pedido>) => Promise<void>;
 }
 
 export const InventarioContext = createContext<InventarioContextType>({
@@ -60,12 +73,16 @@ export const InventarioContext = createContext<InventarioContextType>({
   registrarCredito: () => {},
   marcarPagoCredito: () => {},
   loading: true,
+  pedidos: [],
+  registrarPedido: async () => {},
+  actualizarPedido: async () => {},
 });
 
 export function InventarioProvider({ children }: { children: ReactNode }) {
   const [insumos, setInsumos] = useState<InsumoBD[]>(MATERIA_PRIMA_INICIAL);
   const [productosTerminados, setProductosTerminados] = useState<ProductoTerminado[]>(PRODUCTOS_TERMINADOS_INICIALES);
   const [creditos, setCreditos] = useState<Credito[]>([]);
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -145,6 +162,16 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
               creditosUnificados.push(nuevo);
             }
           });
+        }
+
+        }
+        
+        const sheetPedidos = await googleSheetsService.getSheetData<any>('Pedidos');
+        if (sheetPedidos) {
+            setPedidos(sheetPedidos.map(p => ({
+                ...p,
+                cantidad: Number(p.cantidad) || 0
+            })));
         }
 
         setCreditos(creditosUnificados);
@@ -234,11 +261,22 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const registrarPedido = useCallback(async (nuevo: Pedido) => {
+    setPedidos(prev => [nuevo, ...prev]);
+    await googleSheetsService.appendRow('Pedidos', nuevo);
+  }, []);
+
+  const actualizarPedido = useCallback(async (id: string, updates: Partial<Pedido>) => {
+    setPedidos(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    await googleSheetsService.updateRow('Pedidos', 'id', id, updates);
+  }, []);
+
   return (
     <InventarioContext.Provider value={{
       insumos, descontarInsumos, agregarInsumo, descontarInsumoExtra,
       productosTerminados, agregarProductoTerminado, descontarProductoTerminado,
       creditos, registrarCredito, marcarPagoCredito,
+      pedidos, registrarPedido, actualizarPedido,
       loading,
     }}>
       {children}

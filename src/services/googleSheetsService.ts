@@ -13,7 +13,8 @@ export type SheetName =
   | 'Cartera'
   | 'Clientes'
   | 'Recipes'
-  | 'Configuracion';
+  | 'Configuracion'
+  | 'Pedidos';
 
 // Mapeo: nombre interno → tabla en Supabase
 const TABLE: Record<SheetName, string> = {
@@ -26,6 +27,7 @@ const TABLE: Record<SheetName, string> = {
   Clientes: 'clientes',
   Recipes: 'recetas',
   Configuracion: 'rutas',
+  Pedidos: 'pedidos',
 };
 
 // Clave de caché local

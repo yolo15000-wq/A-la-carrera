@@ -16,12 +16,15 @@ import DashboardView from "../views/DashboardView";
 import CarteraView from "../views/CarteraView";
 import ReportesView from "../views/ReportesView";
 import MaestrosView from "../views/MaestrosView";
-import { Database } from "lucide-react";
+import PedidosView from "../views/PedidosView";
+import AIAssistant from "./AIAssistant";
+import { Database, ShoppingBag } from "lucide-react";
 
 const MENU_ITEMS = [
   { icon: Home,         label: 'Inicio',                badge: 0 },
   { icon: Factory,      label: 'Producción',            badge: 0 },
   { icon: Truck,        label: 'Ventas y Rutas',        badge: 2 },
+  { icon: ShoppingBag,  label: 'Pedidos',               badge: 0 },
   { icon: Wallet,       label: 'Liquidación',           badge: 0 },
   { icon: Users,        label: 'Clientes',              badge: 0 },
   { icon: Wallet,       label: 'Cartera',               badge: 0 },
@@ -86,7 +89,7 @@ const MainContent = () => {
   // Filtrar menú según rol
   const filteredMenu = MENU_ITEMS.filter(item => {
     if (user.role === 'admin') return true;
-    if (user.role === 'vendedor') return ['Ventas y Rutas', 'Liquidación', 'Clientes', 'Cartera', 'Inicio'].includes(item.label);
+    if (user.role === 'vendedor') return ['Ventas y Rutas', 'Pedidos', 'Liquidación', 'Clientes', 'Cartera', 'Inicio'].includes(item.label);
     if (user.role === 'operario') return ['Producción', 'Materia Prima', 'Producto Terminado', 'Inicio'].includes(item.label);
     return false;
   });
@@ -105,6 +108,7 @@ const MainContent = () => {
       case 'Producción':          return <ProduccionView />;
       case 'Ventas y Rutas':      return <VentasView />;
       case 'Liquidación':         return <LiquidacionView />;
+      case 'Pedidos':             return <PedidosView />;
       case 'Clientes':            return <ClientesView />;
       case 'Cartera':             return <CarteraView />;
       case 'Producto Terminado':  return <ProductosTerminadosView />;
@@ -242,6 +246,9 @@ const MainContent = () => {
           <main className="flex-1 p-3 md:p-6 overflow-auto">
             {renderView()}
           </main>
+          
+          {/* Asistente IA Global */}
+          <AIAssistant />
         </div>
       </div>
     </InventarioProvider>
