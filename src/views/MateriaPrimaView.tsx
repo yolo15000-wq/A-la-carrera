@@ -47,24 +47,25 @@ export default function MateriaPrimaView() {
     if (!nueva.nombre.trim()) return;
     setSaving(true);
     try {
-      const codigo = `INS-${Date.now()}`;
+      const codigo = `INS-${nueva.nombre.trim().slice(0,3).toUpperCase()}-${Date.now()}`;
       const { error } = await supabase.from('inventario').insert([{
         codigo,
         insumo:     nueva.nombre.trim(),
         existencia: nueva.existencia,
         unidad:     nueva.unidad,
-        stock_actual: nueva.existencia,
-        // stock_minimo se maneja en STOCK_MINIMOS por ahora
       }]);
-      if (error) throw error;
+      if (error) {
+        console.error("Error Supabase:", error);
+        throw error;
+      }
       setShowNueva(false);
       setNueva({ nombre: '', unidad: 'gr', stock_minimo: 0, existencia: 0 });
-      setOk("✅ Materia prima registrada — recarga para verla");
-      setTimeout(() => setOk(null), 4000);
+      setOk("✅ Materia prima registrada — recarga para verla en la lista");
+      setTimeout(() => setOk(null), 5000);
     } catch (e) {
       console.error(e);
-      setOk("❌ Error al guardar. Intenta de nuevo.");
-      setTimeout(() => setOk(null), 4000);
+      setOk("❌ Error al guardar. Revisa la consola.");
+      setTimeout(() => setOk(null), 5000);
     }
     setSaving(false);
   };
