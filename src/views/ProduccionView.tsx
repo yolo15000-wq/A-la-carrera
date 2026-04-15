@@ -29,7 +29,6 @@ export default function ProduccionView() {
   const [loading, setLoading] = useState(true);
   const [showFinalizarModal, setShowFinalizarModal] = useState(false);
   const [unidadesReales, setUnidadesReales] = useState(0);
-  const [bolsasUtilizadas, setBolsasUtilizadas] = useState(0);
 
   useEffect(() => {
     async function loadLotes() {
@@ -91,7 +90,6 @@ export default function ProduccionView() {
   const prepararFinalizacion = () => {
     if (!batchActivo) return;
     setUnidadesReales(0);
-    setBolsasUtilizadas(0);
     setShowFinalizarModal(true);
   };
 
@@ -117,13 +115,9 @@ export default function ProduccionView() {
     await googleSheetsService.updateRow('Produccion', 'id_lote', id, updates);
     await agregarProductoTerminado(batchActivo.producto, unidadesReales);
 
-    if (bolsasUtilizadas > 0) {
-      await descontarInsumoExtra("bolsas", bolsasUtilizadas);
-    }
-    
-    // Descontar las bolsas utilizadas del inventario de materia prima
-    if (bolsasUtilizadas > 0) {
-      await descontarInsumoExtra("Bolsas", bolsasUtilizadas);
+    // Descontar automáticamente las bolsas correspondientes al producto
+    if (unidadesReales > 0) {
+      await descontarInsumoExtra(`Bolsa ${batchActivo.producto}`, unidadesReales);
     }
     
     setLotes(prev => prev.map(l => l.id_lote === id ? { ...l, ...updates } : l));
@@ -261,13 +255,7 @@ export default function ProduccionView() {
                 <input type="number" value={unidadesReales || ''} onChange={e => setUnidadesReales(parseInt(e.target.value) || 0)}
                   placeholder="0"
                   className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-6 outline-none font-black text-4xl text-center text-green-600 mb-4" />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest text-left">Bolsas Empacadas <span className="text-gray-300">(opcional)</span></label>
-                <input type="number" value={bolsasUtilizadas || ''} onChange={e => setBolsasUtilizadas(parseInt(e.target.value) || 0)}
-                  placeholder="0"
-                  className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-6 outline-none font-black text-3xl text-center text-brand-500" />
+                <p className="text-[10px] text-gray-500 font-bold mt-2 italic">Se descontarán automáticamente {unidadesReales > 0 ? unidadesReales : 'las'} "Bolsa {batchActivo.producto}" del inventario de MP.</p>
               </div>
               
               <button 
