@@ -294,6 +294,7 @@ export default function MaestrosView() {
                 <input type="text" value={newUser.username} onChange={e => setNewUser(p => ({ ...p, username: e.target.value }))}
                   className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all" placeholder="Ej: Camila Lopez" />
               </div>
+              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">Rol del sistema</label>
@@ -307,8 +308,14 @@ export default function MaestrosView() {
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">WhatsApp (Con 57...)</label>
                   <input type="text" value={newUser.whatsapp} onChange={e => setNewUser(p => ({ ...p, whatsapp: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all" placeholder="Ej: 573001234567" />
+                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all" placeholder="Ej: 57300..." />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">PIN de Acceso (App)</label>
+                <input type="text" maxLength={4} value={newUser.pin} onChange={e => setNewUser(p => ({ ...p, pin: e.target.value }))}
+                  className="w-full bg-brand-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all text-center font-black tracking-[0.5em] text-brand-600" placeholder="0000" />
               </div>
             </div>
             <div className="p-6 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
