@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
-const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
+const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || "sk-e330ae8bb98a44a6be8af89f6a388417";
 
 export interface AIChatMessage {
   role: 'system' | 'user' | 'assistant';
