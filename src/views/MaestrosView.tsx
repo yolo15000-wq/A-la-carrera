@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { 
   Book, Package, Users, Plus, Save, Trash2, ChevronRight, Database, Search, Truck, X, ShieldCheck
 } from "lucide-react";
@@ -11,6 +11,7 @@ interface Profile {
   username: string;
   role: 'admin' | 'vendedor' | 'operario';
   pin: string;
+  whatsapp?: string;
 }
 
 export default function MaestrosView() {
@@ -26,7 +27,7 @@ export default function MaestrosView() {
   const [showProdModal, setShowProdModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   
-  const [newUser, setNewUser] = useState({ username: '', pin: '', role: 'vendedor' as const });
+  const [newUser, setNewUser] = useState({ username: '', pin: '', role: 'vendedor' as const, whatsapp: '' });
   const [newProd, setNewProd] = useState({ nombre: '', precio: '' });
   const [newRecipe, setNewRecipe] = useState({ nombre: '', precio: '', ingrediente: '', cantidad: '', ingredientes: [] as any[] });
 
@@ -53,12 +54,13 @@ export default function MaestrosView() {
       const { error } = await supabase.from('profiles').insert([{ 
         username: newUser.username, 
         pin: newUser.pin, 
-        role: newUser.role 
+        role: newUser.role,
+        whatsapp: newUser.whatsapp 
       }]);
       if (error) throw error;
       fetchProfiles();
       setShowUserModal(false);
-      setNewUser({ username: '', pin: '', role: 'vendedor' });
+      setNewUser({ username: '', pin: '', role: 'vendedor', whatsapp: '' });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -152,6 +154,11 @@ export default function MaestrosView() {
                     </span>
                   </div>
                   <h4 className="font-black text-xs text-gray-900 dark:text-white uppercase italic">{p.username}</h4>
+                  {p.whatsapp && (
+                    <p className="text-[10px] font-bold text-brand-500 mt-1 flex items-center gap-1">
+                      <Truck className="h-3 w-3" /> {p.whatsapp}
+                    </p>
+                  )}
                   <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
                     <button onClick={() => handleDeleteUser(p.id)} className="p-2 text-gray-400 hover:text-rose-600 transition-colors">
                       <Trash2 className="h-4 w-4" />
@@ -298,9 +305,9 @@ export default function MaestrosView() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">PIN de Acceso</label>
-                  <input type="text" maxLength={4} value={newUser.pin} onChange={e => setNewUser(p => ({ ...p, pin: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all text-center font-black tracking-[0.5em]" placeholder="0000" />
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">WhatsApp (Con 57...)</label>
+                  <input type="text" value={newUser.whatsapp} onChange={e => setNewUser(p => ({ ...p, whatsapp: e.target.value }))}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-brand-500 rounded-2xl px-4 py-3 text-sm outline-none transition-all" placeholder="Ej: 573001234567" />
                 </div>
               </div>
             </div>
