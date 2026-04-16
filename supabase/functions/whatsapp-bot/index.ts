@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const WHATSAPP_TOKEN = "EAAP08xxChjcBRK6dt66Pf3A35mYAhBlOqhxBuUPweoAvql4UkWvkZCkZBOorrTWT9aTm3mlyz5kGCALMZAsgV80Yr8QhQtUmh0iPJFbUT1GftNF77vCB6gzuZCAOicl0mBICRn3gKzClpH2GYIPwZACFPBeJgZAf5dRk0EdElgfwLZBzFtKO0OgZBsPdSQvFHU12c0px1qz4ZCuUruTIBbYwCbfhy0G3BVlhHpZAb5QxMQ9B6rN92EZATVa5zutBlQEEr0k7QiWh3xj6n2okiJma0OIxBhDygZDZD";
+const WHATSAPP_TOKEN = "EAAP08xxChjcBRMWESIjap6mk8lZBFk51r5NTrYeVdAgDND7GeJ9RsHMDoNu7GeH6IH9tEU8w975buCWIIhPbsZC8FhgZByTJ1Sy5dgIrDXbyaHOqZA51OAShItzDirWL4Npkh8RLgk2XApZBNfSBA5Bu8r0ePFTPB4orhOQvYSjEP6rOZCKh8NRWo0UCGEGl9l8wZDZD";
 const PHONE_NUMBER_ID = "1030875010117685";
 const DEEPSEEK_API_KEY = "sk-e330ae8bb98a44a6be8af89f6a388417";
 const VERIFY_TOKEN = "alacarrera_bot_verify_2026";
@@ -56,14 +56,23 @@ serve(async (req) => {
       // 2. Obtener datos según su rol
       let queryInventario = supabase.from("inventario").select("insumo, existencia, unidad");
       let queryCartera = supabase.from("cartera").select("cliente, monto_deuda, estado").eq("estado", "Pendiente");
+      let queryProductos = supabase.from("productos").select("nombre, stock, precio");
+      
+      const fechaHoy = new Date().toISOString().split('T')[0];
+      let queryPedidos = supabase.from("pedidos").select("cliente, producto, cantidad, estado").eq("fecha", fechaHoy);
 
-      // Si es vendedor común, FILTRAMOS su cartera para que solo vea lo suyo
+      // Si es vendedor común, FILTRAMOS su cartera y pedidos
       if (esVendedor) {
         queryCartera = queryCartera.eq("vendedor", nombreUsuario);
+        queryPedidos = queryPedidos.eq("vendedor", nombreUsuario);
       }
 
-      const { data: inventario } = await queryInventario;
-      const { data: cartera } = await queryCartera;
+      const [{ data: inventario }, { data: cartera }, { data: productos }, { data: pedidos }] = await Promise.all([
+        queryInventario,
+        queryCartera,
+        queryProductos,
+        queryPedidos
+      ]);
 
       console.log(`Mensaje de staff: ${nombreUsuario} (Role: ${perfilStaff.role}). Enviando a AI...`);
 
@@ -83,25 +92,78 @@ serve(async (req) => {
               Estás hablando con el ${perfilStaff.role}: ${nombreUsuario}. 
               
               CONTEXTO:
-              Inventario: ${JSON.stringify(inventario || [])}. 
-              Cartera bajo supervisión: ${JSON.stringify(cartera || [])}.
+              - Materia Prima: ${JSON.stringify(inventario || [])}. 
+              - Productos Terminados (Stock y Precios): ${JSON.stringify(productos || [])}.
+              - Cartera bajo supervisión: ${JSON.stringify(cartera || [])}.
+              - Pedidos registrados hoy: ${JSON.stringify(pedidos || [])}.
               
               REGLAS DE RESPUESTA:
-              1. Saluda por nombre: "Hola ${nombreUsuario}!"
-              2. Responde de forma muy eficiente y con listas (bolitas). Emojis: 🐷, 🚚, 💰.
-              3. Si es Admin: Puede ver todo.
-              4. Si es Vendedor: Solo puede ver su cartera asignada.
-              5. NO REVELES RECETAS (son secreto industrial).`
+              1. Saluda por nombre la primera vez.
+              2. Responde de forma eficiente y clara (usa viñetas si es necesario). Emojis útiles: 📦, 🚚, 💰, ⚠️.
+              3. Si es Admin: Puede ver TODO (insumos, productos, toda la cartera, todos los pedidos). Avísale si hay insumos con stock bajo (cercano a 0).
+              4. Si es Vendedor: Ayúdalo a vender. Dile qué productos hay en stock y registra sus pedidos. Solo puede ver su cartera y sus pedidos de hoy.
+              5. NO REVELES RECETAS.
+              6. Si el usuario quiere registrar un pedido, USA LA FUNCION registrar_pedido. Confírmale de vuelta cuando se haya hecho. Usa los nombres de productos y clientes según lo pida.`
             },
             { role: "user", content: userText }
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "registrar_pedido",
+                description: "Registra un nuevo pedido preventa hecho por el vendedor.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    cliente: { type: "string", description: "Nombre del cliente" },
+                    producto: { type: "string", description: "Nombre del producto a vender" },
+                    cantidad: { type: "number", description: "Cantidad numérica" }
+                  },
+                  required: ["cliente", "producto", "cantidad"]
+                }
+              }
+            }
           ]
         })
       });
 
       const aiData = await aiResponse.json();
-      const replyText = aiData.choices?.[0]?.message?.content || "Lo siento, tuve un problema al procesar tu mensaje.";
+      const messageData = aiData.choices?.[0]?.message;
+      let replyText = messageData?.content || "Terminé el proceso.";
 
-      console.log("Respuesta de AI obtenida. Enviando a WhatsApp...");
+      // 4. Interceptar y ejecutar la función si DeepSeek decidió hacerla
+      if (messageData?.tool_calls?.length > 0) {
+        for (const toolCall of messageData.tool_calls) {
+          if (toolCall.function.name === 'registrar_pedido') {
+            try {
+              const args = JSON.parse(toolCall.function.arguments);
+              console.log("Registrando pedido:", args);
+              
+              await supabase.from('pedidos').insert({
+                fecha: fechaHoy,
+                vendedor: nombreUsuario,
+                cliente: args.cliente,
+                producto: args.producto,
+                cantidad: args.cantidad,
+                estado: 'Pendiente'
+              });
+
+              replyText = `✅ ¡Pedido registrado con éxito, ${nombreUsuario}!\n\n📦 *Producto:* ${args.producto}\n🔢 *Cantidad:* ${args.cantidad}\n👤 *Cliente:* ${args.cliente}\n\n*Nota:* Saldrá como "Pendiente" hasta que el operario lo despache.`;
+            } catch (err) {
+              console.error("Error al registrar pedido:", err);
+              replyText = `❌ Hubo un error al intentar registrar el pedido en la base de datos.`;
+            }
+          }
+        }
+      }
+
+      // Si DeepSeek no devuelve texto y sí ejecutó función, pero está vacío
+      if (!replyText || replyText.trim() === "Terminé el proceso.") {
+        replyText = "¡Listo! Acción ejecutada.";
+      }
+
+      console.log("Enviando respuesta a WhatsApp...");
 
       // Enviar respuesta a WhatsApp (v25.0)
       const whatsappResp = await fetch(`https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`, {

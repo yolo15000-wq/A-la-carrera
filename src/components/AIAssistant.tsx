@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, MessageSquare, Loader2, User, Mic } from 'lucide-react';
-import { aiService, AIChatMessage } from '../services/aiService';
+import { aiService, type AIChatMessage } from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
 
 export default function AIAssistant() {

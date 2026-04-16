@@ -163,9 +163,8 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
             }
           });
         }
-
-        }
         
+
         const sheetPedidos = await googleSheetsService.getSheetData<any>('Pedidos');
         if (sheetPedidos) {
             setPedidos(sheetPedidos.map(p => ({

@@ -1,13 +1,13 @@
 import { useState, useContext } from "react";
 import { Plus, ShoppingBag, Clock, CheckCircle2, XCircle, AlertCircle, User, Package } from "lucide-react";
-import { InventarioContext, Pedido } from "../context/InventarioContext";
+import { InventarioContext, type Pedido } from "../context/InventarioContext";
 import { useAuth } from "../context/AuthContext";
-import { ClientesContext } from "../context/ClientesContext";
+import { useClientes } from "../context/ClientesContext";
 
 export default function PedidosView() {
   const { user } = useAuth();
   const { pedidos, registrarPedido, actualizarPedido, productosTerminados } = useContext(InventarioContext);
-  const { clientes } = useContext(ClientesContext);
+  const { clientes } = useClientes();
   
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
