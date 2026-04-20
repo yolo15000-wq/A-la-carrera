@@ -49,20 +49,20 @@ async function getSheetData<T>(sheet: SheetName): Promise<T[]> {
 }
 
 /** Inserta una fila en Supabase. También actualiza caché. */
-async function appendRow(sheet: SheetName, row: any): Promise<boolean> {
+async function appendRow(sheet: SheetName, row: any): Promise<any> {
   try {
-    const { error } = await supabase.from(TABLE[sheet]).insert([row]);
+    const { data, error } = await supabase.from(TABLE[sheet]).insert([row]).select().single();
     if (error) throw error;
     // Refrescar caché
     await getSheetData(sheet);
-    return true;
+    return data;
   } catch (err) {
     console.error(`[appendRow] ${sheet}:`, err);
     // Guardar en cola offline
     const queue = JSON.parse(localStorage.getItem('alc_offline_queue') ?? '[]');
     queue.push({ action: 'insert', sheet, row, ts: Date.now() });
     localStorage.setItem('alc_offline_queue', JSON.stringify(queue));
-    return false;
+    return null;
   }
 }
 
