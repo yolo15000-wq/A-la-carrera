@@ -3,17 +3,22 @@ import { Plus, ShoppingBag, Clock, CheckCircle2, XCircle, AlertCircle, User, Pac
 import { InventarioContext, type Pedido } from "../context/InventarioContext";
 import { useAuth } from "../context/AuthContext";
 import { useClientes } from "../context/ClientesContext";
+import { useCatalogos } from "../context/CatalogosContext";
 
 export default function PedidosView() {
   const { user } = useAuth();
   const { pedidos, registrarPedido, actualizarPedido, productosTerminados } = useContext(InventarioContext);
-  const { clientes } = useClientes();
+  const { clientes, agregarCliente } = useClientes();
+  const { rutas } = useCatalogos();
   
   const [showModal, setShowModal] = useState(false);
   const [isNewClient, setIsNewClient] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     cliente: '',
+    telefono: '',
+    direccion: '',
+    ruta: rutas[0] || 'Ruta Norte',
     producto: '',
     cantidad: 0,
     nota: ''
@@ -25,6 +30,15 @@ export default function PedidosView() {
     if (!form.cliente || !form.producto || form.cantidad <= 0 || !user) return;
     setSaving(true);
     try {
+      if (isNewClient) {
+        await agregarCliente({
+           nombre: form.cliente,
+           telefono: form.telefono,
+           direccion: form.direccion,
+           ruta: form.ruta,
+           vendedor: user.username
+        });
+      }
       const nuevo: any = {
         fecha: new Date().toLocaleDateString('es-CO'),
         vendedor: user.username,
@@ -36,7 +50,7 @@ export default function PedidosView() {
       };
       await registrarPedido(nuevo);
       setShowModal(false);
-      setForm({ cliente: '', producto: '', cantidad: 0, nota: '' });
+      setForm({ cliente: '', telefono: '', direccion: '', ruta: rutas[0] || 'Ruta Norte', producto: '', cantidad: 0, nota: '' });
       setIsNewClient(false);
     } finally {
       setSaving(false);
@@ -138,9 +152,23 @@ export default function PedidosView() {
                       ))}
                     </select>
                   ) : (
-                    <input type="text" value={form.cliente} onChange={e => setForm(f => ({...f, cliente: e.target.value}))}
-                      placeholder="EJ: MINIMERCADO EL SOL"
-                      className="w-full bg-gray-50 p-5 rounded-3xl outline-none font-black text-sm uppercase border border-gray-100" />
+                    <div className="space-y-3">
+                      <input type="text" value={form.cliente} onChange={e => setForm(f => ({...f, cliente: e.target.value}))}
+                        placeholder="NOMBRE DEL CLIENTE"
+                        className="w-full bg-gray-50 p-4 rounded-2xl outline-none font-black text-sm uppercase border border-gray-100 focus:border-brand-300" />
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="text" value={form.telefono} onChange={e => setForm(f => ({...f, telefono: e.target.value}))}
+                          placeholder="Teléfono"
+                          className="w-full bg-gray-50 p-4 rounded-2xl outline-none font-bold text-xs border border-gray-100 focus:border-brand-300" />
+                        <select value={form.ruta} onChange={e => setForm(f => ({...f, ruta: e.target.value}))}
+                          className="w-full bg-gray-50 p-4 rounded-2xl outline-none font-bold text-xs uppercase border border-gray-100 focus:border-brand-300">
+                          {rutas.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+                      <input type="text" value={form.direccion} onChange={e => setForm(f => ({...f, direccion: e.target.value}))}
+                        placeholder="Dirección completa"
+                        className="w-full bg-gray-50 p-4 rounded-2xl outline-none font-bold text-xs border border-gray-100 focus:border-brand-300" />
+                    </div>
                   )}
                 </div>
 
