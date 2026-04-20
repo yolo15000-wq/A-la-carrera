@@ -29,6 +29,7 @@ export default function ClientesView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving]           = useState(false);
   const [collapsed, setCollapsed]     = useState<Record<string, boolean>>({});
+  const [groupBy, setGroupBy]         = useState<'ruta' | 'vendedor'>('ruta');
 
   const [formData, setFormData] = useState<Cliente>({
     nombre: "", telefono: "", direccion: "", ruta: rutas[0] ?? "Ruta Norte",
@@ -46,17 +47,18 @@ export default function ClientesView() {
     (c.direccion ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ── Para admin: agrupar por vendedor ────────────────────────────────────
-  const gruposPorVendedor = useMemo(() => {
-    if (!isAdmin) return null;
+  // ── Agrupación dinámica ────────────────────────────────────────────────
+  const gruposClientes = useMemo(() => {
     const grupos: Record<string, Cliente[]> = {};
     clientesFiltrados.forEach(c => {
-      const v = c.vendedor || 'Sin Asignar';
-      if (!grupos[v]) grupos[v] = [];
-      grupos[v].push(c);
+      let key = groupBy === 'ruta' ? (c.ruta || 'Sin Ruta') : (c.vendedor || 'Sin Asignar');
+      if (!isAdmin && groupBy === 'vendedor') key = c.ruta || 'Sin Ruta'; // Vendedor siempre agrupa por ruta o nada
+      
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(c);
     });
     return Object.entries(grupos).sort((a, b) => b[1].length - a[1].length);
-  }, [isAdmin, clientesFiltrados]);
+  }, [isAdmin, clientesFiltrados, groupBy]);
 
   // Crédito pendiente de un cliente
   const deudaDeCliente = (nombre: string) =>
@@ -126,20 +128,29 @@ export default function ClientesView() {
 
   return (
     <div className="space-y-8 pb-20">
-      {/* Header */}
+      {/* Header y Toggle */}
       <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6"
         style={{ borderTop: "3px solid #E5007E" }}>
-        <div>
-          <h2 className="text-3xl font-black text-gray-900 uppercase italic tracking-tighter">
-            {isAdmin ? 'Agenda de Clientes' : `Mis Clientes`}
-          </h2>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
-            {misClientes.length} clientes registrados
-            {!isAdmin ? ` · ${user?.username}` : ''}
-          </p>
+        <div className="flex-1 flex justify-between items-center w-full">
+          <div>
+            <h2 className="text-3xl font-black text-gray-900 uppercase italic tracking-tighter">
+              {isAdmin ? 'Agenda de Clientes' : `Mis Clientes`}
+            </h2>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
+              {misClientes.length} clientes registrados {!isAdmin ? ` · ${user?.username}` : ''}
+            </p>
+          </div>
+          
+          <div className="flex bg-gray-100 p-1 rounded-2xl mx-4">
+             <button onClick={() => setGroupBy('ruta')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${groupBy === 'ruta' ? 'bg-white shadow-sm text-brand-500' : 'text-gray-400 hover:text-gray-600'}`}>Por Ruta</button>
+             {isAdmin && (
+               <button onClick={() => setGroupBy('vendedor')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${groupBy === 'vendedor' ? 'bg-white shadow-sm text-brand-500' : 'text-gray-400 hover:text-gray-600'}`}>Por Vendedor</button>
+             )}
+          </div>
         </div>
+        
         <button onClick={() => setIsModalOpen(true)}
-          className="bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center gap-2">
+          className="w-full md:w-auto bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
           <UserPlus size={18} /> Nuevo Cliente
         </button>
       </div>
@@ -160,28 +171,34 @@ export default function ClientesView() {
         </div>
       )}
 
-      {/* ── VISTA ADMIN: agrupado por vendedor ──────────────────────────── */}
-      {!loading && isAdmin && gruposPorVendedor && (
+      {/* ── LISTADO AGRUPADO (AMBOS) ──────────────────────────── */}
+      {!loading && gruposClientes && (
         <div className="space-y-8">
-          {gruposPorVendedor.length === 0 ? (
+          {gruposClientes.length === 0 ? (
             <div className="py-24 text-center bg-gray-50 rounded-[40px] border-2 border-dashed border-gray-200">
               <Users className="mx-auto text-gray-200 mb-4" size={60} />
-              <p className="text-gray-400 font-black uppercase italic">Sin clientes registrados</p>
+              <p className="text-gray-400 font-black uppercase italic">Sin clientes</p>
+              {!isAdmin && (
+                <button onClick={() => setIsModalOpen(true)}
+                  className="mt-3 text-brand-500 text-[10px] font-black uppercase tracking-widest hover:underline">
+                  + Agregar primer cliente
+                </button>
+              )}
             </div>
-          ) : gruposPorVendedor.map(([vendedor, lista], idx) => {
+          ) : gruposClientes.map(([grupoNombre, lista], idx) => {
             const col = VENDEDOR_COLORS[idx % VENDEDOR_COLORS.length];
-            const isCollapsed = collapsed[vendedor];
+            const isCollapsed = collapsed[grupoNombre];
             return (
-              <div key={vendedor} className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
+              <div key={grupoNombre} className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2">
                 {/* Cabecera del grupo */}
-                <button onClick={() => toggleCollapse(vendedor)}
+                <button onClick={() => toggleCollapse(grupoNombre)}
                   className={`w-full flex items-center justify-between px-8 py-5 ${col.header} text-white`}>
                   <div className="flex items-center gap-3">
                     <div className="size-10 rounded-2xl bg-white/20 flex items-center justify-center font-black text-lg italic">
-                      {vendedor.charAt(0)}
+                      {grupoNombre.charAt(0)}
                     </div>
                     <div className="text-left">
-                      <p className="font-black uppercase tracking-widest text-sm">{vendedor}</p>
+                      <p className="font-black uppercase tracking-widest text-sm">{grupoNombre}</p>
                       <p className="text-[10px] font-bold opacity-80 uppercase">{lista.length} clientes</p>
                     </div>
                   </div>
@@ -196,7 +213,7 @@ export default function ClientesView() {
                   </div>
                 </button>
 
-                {/* Grid de clientes del vendedor */}
+                {/* Grid de clientes del grupo */}
                 {!isCollapsed && (
                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {lista.map((c, i) => (
@@ -207,26 +224,6 @@ export default function ClientesView() {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* ── VISTA VENDEDOR: sus clientes sin agrupación ──────────────────── */}
-      {!loading && !isAdmin && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {clientesFiltrados.length > 0 ? (
-            clientesFiltrados.map((c, i) => (
-              <ClienteCard key={c.id || i} cliente={c} i={i} colorIdx={0} />
-            ))
-          ) : (
-            <div className="col-span-full py-24 text-center bg-gray-50 rounded-[40px] border-2 border-dashed border-gray-200">
-              <Users className="mx-auto text-gray-200 mb-4" size={60} />
-              <p className="text-gray-400 font-black uppercase italic">Sin clientes aún</p>
-              <button onClick={() => setIsModalOpen(true)}
-                className="mt-3 text-brand-500 text-[10px] font-black uppercase tracking-widest hover:underline">
-                + Agregar primer cliente
-              </button>
-            </div>
-          )}
         </div>
       )}
 
