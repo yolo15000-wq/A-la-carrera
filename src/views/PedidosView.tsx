@@ -10,6 +10,7 @@ export default function PedidosView() {
   const { clientes } = useClientes();
   
   const [showModal, setShowModal] = useState(false);
+  const [isNewClient, setIsNewClient] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     cliente: '',
@@ -36,6 +37,7 @@ export default function PedidosView() {
       await registrarPedido(nuevo);
       setShowModal(false);
       setForm({ cliente: '', producto: '', cantidad: 0, nota: '' });
+      setIsNewClient(false);
     } finally {
       setSaving(false);
     }
@@ -119,14 +121,27 @@ export default function PedidosView() {
               
               <div className="space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Cliente</label>
-                  <select value={form.cliente} onChange={e => setForm(f => ({...f, cliente: e.target.value}))}
-                    className="w-full bg-gray-50 p-5 rounded-3xl outline-none font-black text-xs uppercase appearance-none">
-                    <option value="">-- Seleccionar Cliente --</option>
-                    {clientes.filter(c => user?.role === 'admin' || c.vendedor === user?.username).map(c => (
-                      <option key={c.id} value={c.nombre}>{c.nombre}</option>
-                    ))}
-                  </select>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase block tracking-widest">Cliente</label>
+                    <button onClick={() => { setIsNewClient(!isNewClient); setForm(f=>({...f, cliente: ''})); }} 
+                       className="text-[10px] text-brand-500 font-bold underline cursor-pointer">
+                       {isNewClient ? 'Elegir Existente' : '+ Escribir Nuevo'}
+                    </button>
+                  </div>
+                  
+                  {!isNewClient ? (
+                    <select value={form.cliente} onChange={e => setForm(f => ({...f, cliente: e.target.value}))}
+                      className="w-full bg-gray-50 p-5 rounded-3xl outline-none font-black text-xs uppercase appearance-none border border-gray-100">
+                      <option value="">-- Seleccionar Cliente --</option>
+                      {clientes.filter(c => user?.role === 'admin' || c.vendedor === user?.username).map(c => (
+                        <option key={c.id} value={c.nombre}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" value={form.cliente} onChange={e => setForm(f => ({...f, cliente: e.target.value}))}
+                      placeholder="EJ: MINIMERCADO EL SOL"
+                      className="w-full bg-gray-50 p-5 rounded-3xl outline-none font-black text-sm uppercase border border-gray-100" />
+                  )}
                 </div>
 
                 <div>
