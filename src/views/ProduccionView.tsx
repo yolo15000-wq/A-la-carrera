@@ -28,7 +28,8 @@ export default function ProduccionView() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFinalizarModal, setShowFinalizarModal] = useState(false);
-  const [unidadesReales, setUnidadesReales] = useState(0);
+  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number}[]>([]);
+  const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0 });
 
   useEffect(() => {
     async function loadLotes() {
@@ -89,14 +90,15 @@ export default function ProduccionView() {
 
   const prepararFinalizacion = () => {
     if (!batchActivo) return;
-    setUnidadesReales(0);
+    setProductosFinales([]);
+    setCurrentProd({ producto: '', cantidad: 0 });
     setShowFinalizarModal(true);
   };
 
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
   const finalizarBatch = async () => {
-    if (!batchActivo) return;
+    if (!batchActivo || productosFinales.length === 0) return;
     const id = batchActivo.id_lote;
     const fin = new Date();
     const inicio = startTime ?? fin;
@@ -105,28 +107,37 @@ export default function ProduccionView() {
     const m = diffMin % 60;
     const horasFormateadas = `${h}h ${m}m`;
 
+    const totalUnidades = productosFinales.reduce((acc, curr) => acc + curr.cantidad, 0);
+
     const updates = {
       estado: 'Terminado' as const,
       hora_decimal: diffMin / 1440,
       horas_formateadas: horasFormateadas,
-      unidades_reales: unidadesReales 
+      unidades_reales: totalUnidades 
     };
 
     await googleSheetsService.updateRow('Produccion', 'id_lote', id, updates);
-    await agregarProductoTerminado(batchActivo.producto, unidadesReales);
 
-    // Descontar automáticamente las bolsas correspondientes al producto
-    if (unidadesReales > 0) {
-      await descontarInsumoExtra(`Bolsa ${batchActivo.producto}`, unidadesReales);
-    }
+    // Guardar todos los productos
+    const promesasProductos = productosFinales.map(async (pf) => {
+      await agregarProductoTerminado(pf.producto, pf.cantidad);
+      await descontarInsumoExtra(`Bolsa ${pf.producto}`, pf.cantidad);
+    });
+    await Promise.all(promesasProductos);
     
     setLotes(prev => prev.map(l => l.id_lote === id ? { ...l, ...updates } : l));
-    setMensajeExito(`Éxito: +${unidadesReales} ${batchActivo.producto}`);
+    setMensajeExito(`Éxito: Lote procesado. +${totalUnidades} unidades en total.`);
     setTimeout(() => setMensajeExito(null), 5000);
 
     setBatchActivo(null);
     setStartTime(null);
     setShowFinalizarModal(false);
+  };
+
+  const agregarProdRow = () => {
+    if (!currentProd.producto || currentProd.cantidad <= 0) return;
+    setProductosFinales(prev => [...prev, currentProd]);
+    setCurrentProd({ producto: '', cantidad: 0 });
   };
 
   return (
@@ -220,7 +231,7 @@ export default function ProduccionView() {
               <h2 className="text-2xl font-black uppercase italic tracking-tighter">Nuevo Lote</h2>
               <div className="space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Receta a Seguir</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Fórmula Base (Receta)</label>
                   <select value={form.producto} onChange={e => setForm(p => ({ ...p, producto: e.target.value }))}
                     className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-5 outline-none font-black text-lg uppercase appearance-none">
                     <option value="">-- Seleccionar --</option>
@@ -246,24 +257,55 @@ export default function ProduccionView() {
       {showFinalizarModal && batchActivo && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-10 space-y-6 text-center">
-              <div className="size-20 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600 mb-4"><CheckCircle size={40} /></div>
-              <h2 className="text-2xl font-black uppercase italic">Reportar Unidades</h2>
-              <p className="text-xs text-gray-500 font-bold uppercase">Lote: {batchActivo.producto}</p>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest text-left">Unidades Producidas</label>
-                <input type="number" value={unidadesReales || ''} onChange={e => setUnidadesReales(parseInt(e.target.value) || 0)}
-                  placeholder="0"
-                  className="w-full bg-gray-50 dark:bg-gray-800 rounded-3xl p-6 outline-none font-black text-4xl text-center text-green-600 mb-4" />
-                <p className="text-[10px] text-gray-500 font-bold mt-2 italic">Se descontarán automáticamente {unidadesReales > 0 ? unidadesReales : 'las'} "Bolsa {batchActivo.producto}" del inventario de MP.</p>
+            <div className="p-8 space-y-6 text-center">
+              <div className="size-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600 mb-2"><CheckCircle size={32} /></div>
+              <h2 className="text-2xl font-black uppercase italic">Reportar Producción</h2>
+              <p className="text-xs text-gray-500 font-bold uppercase">Base: {batchActivo.producto}</p>
+              
+              <div className="space-y-4 text-left">
+                {/* Listado de lo agregado */}
+                {productosFinales.length > 0 && (
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 space-y-2 mb-4">
+                    {productosFinales.map((pf, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-sm font-bold uppercase border-b border-gray-200 dark:border-gray-700 pb-2 last:border-0 last:pb-0">
+                        <span className="text-gray-700 dark:text-gray-300">{pf.producto}</span>
+                        <span className="text-brand-500">{pf.cantidad} UND</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Producto Empacado</label>
+                    <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({...p, producto: e.target.value}))}
+                      className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-xs uppercase appearance-none">
+                      <option value="">-- Producto --</option>
+                      {recipes.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+                    </select>
+                  </div>
+                  <div className="w-1/3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Cantidad</label>
+                    <input type="number" value={currentProd.cantidad || ''} onChange={e => setCurrentProd(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
+                      placeholder="0" className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-center text-brand-500" />
+                  </div>
+                </div>
+                
+                <button onClick={agregarProdRow} disabled={!currentProd.producto || currentProd.cantidad <= 0}
+                  className="w-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 disabled:opacity-50 text-gray-700 dark:text-white py-3 rounded-xl font-bold uppercase text-xs transition-all">
+                  + Agregar Producto
+                </button>
               </div>
               
-              <button 
-                onClick={finalizarBatch} 
-                disabled={unidadesReales <= 0}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-green-600/20 active:scale-95 transition-all mt-6">
-                FINALIZAR Y ALMACENAR
-              </button>
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setShowFinalizarModal(false)} className="flex-1 text-gray-400 font-bold uppercase text-[10px]">Cancelar</button>
+                <button 
+                  onClick={finalizarBatch} 
+                  disabled={productosFinales.length === 0}
+                  className="flex-[2] bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-4 rounded-[20px] font-black uppercase text-xs shadow-xl active:scale-95 transition-all">
+                  Almacenar Lote
+                </button>
+              </div>
             </div>
           </div>
         </div>

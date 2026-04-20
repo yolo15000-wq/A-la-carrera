@@ -16,7 +16,7 @@ interface Profile {
 
 export default function MaestrosView() {
   const { user } = useAuth();
-  const { products, recipes, addRecipe, addProduct } = useCatalogos();
+  const { products, recipes, addRecipe, addProduct, deleteProduct, deleteRecipe } = useCatalogos();
   const [activeTab, setActiveTab] = useState<'recetas' | 'productos' | 'personal'>('recetas');
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -78,14 +78,16 @@ export default function MaestrosView() {
 
   const handleCreateProduct = () => {
     if (!newProd.nombre || !newProd.precio) return;
-    addProduct(newProd.nombre, parseFloat(newProd.precio));
+    const slug = newProd.nombre.toLowerCase().replace(/ /g, '-');
+    addProduct({ id: slug, nombre: newProd.nombre, stock: 0, precio: parseFloat(newProd.precio) });
     setShowProdModal(false);
     setNewProd({ nombre: '', precio: '' });
   };
 
   const handleCreateRecipe = () => {
     if (!newRecipe.nombre || !newRecipe.precio || newRecipe.ingredientes.length === 0) return;
-    addRecipe(newRecipe.nombre, newRecipe.ingredientes, parseFloat(newRecipe.precio));
+    const slug = newRecipe.nombre.toLowerCase().replace(/ /g, '-');
+    addRecipe({ id: slug, nombre: newRecipe.nombre, precio: parseFloat(newRecipe.precio), ingredientes: newRecipe.ingredientes });
     setShowRecipeModal(false);
     setNewRecipe({ nombre: '', precio: '', ingrediente: '', cantidad: '', ingredientes: [] });
   };
@@ -179,7 +181,7 @@ export default function MaestrosView() {
                       ${prod.precio.toLocaleString()}
                     </span>
                   </div>
-                  <button className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-rose-600 transition-all">
+                  <button onClick={() => deleteProduct(prod.id)} className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-rose-600 transition-all">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -200,7 +202,9 @@ export default function MaestrosView() {
                         <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{recipe.ingredientes.length} INGREDIENTES</p>
                       </div>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                    <button onClick={() => deleteRecipe(recipe.id)} className="p-2 text-gray-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all">
+                      <Trash2 className="h-5 w-5" />
+                    </button>
                  </div>
                ))}
             </div>

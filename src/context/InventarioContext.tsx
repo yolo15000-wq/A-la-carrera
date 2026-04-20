@@ -219,7 +219,10 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
   const agregarProductoTerminado = useCallback((idOrName: string, cantidad: number) => {
     setProductosTerminados(prev => {
       const cleanSearch = idOrName.toLowerCase().trim();
-      const index = prev.findIndex(p => p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase().includes(cleanSearch) || cleanSearch.includes(p.nombre.toLowerCase()));
+      let index = prev.findIndex(p => p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase() === cleanSearch);
+      if (index === -1) {
+          index = prev.findIndex(p => p.nombre.toLowerCase().includes(cleanSearch) || cleanSearch.includes(p.nombre.toLowerCase()));
+      }
       if (index === -1) return prev;
       const nuevoState = [...prev];
       const producto = nuevoState[index];
@@ -234,7 +237,10 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
   const descontarProductoTerminado = useCallback((idOrName: string, cantidad: number) => {
     setProductosTerminados(prev => {
       const cleanSearch = idOrName.toLowerCase().trim();
-      const index = prev.findIndex(p => p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase().includes(cleanSearch) || cleanSearch.includes(p.nombre.toLowerCase()));
+      let index = prev.findIndex(p => p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase() === cleanSearch);
+      if (index === -1) {
+          index = prev.findIndex(p => p.nombre.toLowerCase().includes(cleanSearch) || cleanSearch.includes(p.nombre.toLowerCase()));
+      }
       if (index === -1) return prev;
       const nuevoState = [...prev];
       const producto = nuevoState[index];

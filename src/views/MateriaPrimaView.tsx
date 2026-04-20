@@ -13,7 +13,7 @@ export default function MateriaPrimaView() {
 
   // ── Modal abastecer ────────────────────────────────────────────────────
   const [showModal, setShowModal]   = useState(false);
-  const [compra, setCompra]         = useState({ codigo: '', cantidad: 0 });
+  const [compra, setCompra]         = useState({ codigo: '', cantidad: 0, tipo: 'ingreso' as 'ingreso' | 'salida' });
 
   // ── Modal nueva materia prima ──────────────────────────────────────────
   const [showNueva, setShowNueva]   = useState(false);
@@ -32,12 +32,19 @@ export default function MateriaPrimaView() {
     return min > 0 && i.existencia < min;
   });
 
-  // ── Registrar abastecimiento ───────────────────────────────────────────
+  const { descontarInsumoExtra } = useContext(InventarioContext);
+
   const registrarCompra = () => {
     if (!compra.codigo || compra.cantidad <= 0) return;
-    agregarInsumo(compra.codigo, compra.cantidad);
+    
+    if (compra.tipo === 'ingreso') {
+       agregarInsumo(compra.codigo, compra.cantidad);
+    } else {
+       descontarInsumoExtra(compra.codigo, compra.cantidad);
+    }
+    
     setShowModal(false);
-    setCompra({ codigo: '', cantidad: 0 });
+    setCompra({ codigo: '', cantidad: 0, tipo: 'ingreso' });
     setOk("✅ Inventario actualizado");
     setTimeout(() => setOk(null), 3000);
   };
@@ -106,7 +113,7 @@ export default function MateriaPrimaView() {
             </button>
             <button onClick={() => setShowModal(true)}
               className="flex items-center gap-3 bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all">
-              <TrendingUp className="h-5 w-5" /> Abastecer
+              <TrendingUp className="h-5 w-5" /> Ajustar MP
             </button>
           </div>
         )}
@@ -165,7 +172,7 @@ export default function MateriaPrimaView() {
           <div className="bg-white dark:bg-gray-900 rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden">
             <div className="p-10 space-y-8">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Entrada de Insumos</h2>
+                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Ajuste de Stock</h2>
                 <button onClick={() => setShowModal(false)} className="text-gray-300 hover:text-gray-600"><X size={20} /></button>
               </div>
 
@@ -182,19 +189,31 @@ export default function MateriaPrimaView() {
                   </select>
                 </div>
 
+                {/* Tipo de Ajuste */}
+                <div className="flex gap-3">
+                  <button onClick={() => setCompra(p => ({...p, tipo: 'ingreso'}))} 
+                     className={`flex-1 py-3 rounded-2xl font-black uppercase text-xs transition-all border-2 ${compra.tipo === 'ingreso' ? 'bg-emerald-50 text-emerald-600 border-emerald-500' : 'text-gray-400 border-gray-100 hover:border-emerald-200'}`}>
+                     Ingreso (+)
+                  </button>
+                  <button onClick={() => setCompra(p => ({...p, tipo: 'salida'}))}
+                     className={`flex-1 py-3 rounded-2xl font-black uppercase text-xs transition-all border-2 ${compra.tipo === 'salida' ? 'bg-red-50 text-red-600 border-red-500' : 'text-gray-400 border-gray-100 hover:border-red-200'}`}>
+                     Retiro (-)
+                  </button>
+                </div>
+
                 {/* Cantidad con unidad visible */}
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">
-                    Cantidad a Ingresar
+                    Cantidad {compra.tipo === 'ingreso' ? 'a Ingresar' : 'a Retirar'}
                     {insumoSeleccionado && (
-                      <span className="ml-2 text-brand-500">({insumoSeleccionado.unidad})</span>
+                      <span className={`ml-2 ${compra.tipo === 'ingreso' ? 'text-emerald-500' : 'text-red-500'}`}>({insumoSeleccionado.unidad})</span>
                     )}
                   </label>
                   <div className="relative">
                     <input type="number" value={compra.cantidad || ''}
                       onChange={e => setCompra(p => ({ ...p, cantidad: parseFloat(e.target.value) || 0 }))}
                       placeholder="0"
-                      className="w-full bg-gray-50 rounded-3xl p-5 outline-none font-black text-3xl text-center text-emerald-600 border border-gray-100 focus:border-brand-300" />
+                      className={`w-full bg-gray-50 rounded-3xl p-5 outline-none font-black text-3xl text-center border border-gray-100 focus:border-brand-300 ${compra.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-600'}`} />
                     {insumoSeleccionado && (
                       <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 font-black text-sm uppercase">
                         {insumoSeleccionado.unidad}
@@ -202,15 +221,15 @@ export default function MateriaPrimaView() {
                     )}
                   </div>
                   {insumoSeleccionado && compra.cantidad > 0 && (
-                    <p className="text-center text-xs text-emerald-600 font-bold mt-2">
-                      Nuevo total: {(insumoSeleccionado.existencia + compra.cantidad).toLocaleString('es-CO')} {insumoSeleccionado.unidad}
+                    <p className={`text-center text-xs font-bold mt-2 ${compra.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      Nuevo total: {(compra.tipo === 'ingreso' ? insumoSeleccionado.existencia + compra.cantidad : Math.max(0, insumoSeleccionado.existencia - compra.cantidad)).toLocaleString('es-CO')} {insumoSeleccionado.unidad}
                     </p>
                   )}
                 </div>
               </div>
 
               <button onClick={registrarCompra} disabled={!compra.codigo || compra.cantidad <= 0}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-100 disabled:text-gray-400 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-emerald-500/30 transition-all active:scale-95">
+                className={`w-full text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl transition-all active:scale-95 disabled:bg-gray-100 disabled:text-gray-400 ${compra.tipo === 'ingreso' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30' : 'bg-red-600 hover:bg-red-700 shadow-red-500/30'}`}>
                 GUARDAR EN INVENTARIO
               </button>
             </div>
