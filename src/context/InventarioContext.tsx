@@ -35,6 +35,7 @@ export interface Pedido {
   producto: string;
   cantidad: number;
   estado: 'Pendiente' | 'Entregado' | 'Cancelado';
+  nota?: string;
 }
 
 const PRODUCTOS_TERMINADOS_INICIALES: ProductoTerminado[] = [
@@ -267,8 +268,14 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const registrarPedido = useCallback(async (nuevo: Pedido) => {
-    setPedidos(prev => [nuevo, ...prev]);
-    await googleSheetsService.appendRow('Pedidos', nuevo);
+    try {
+      const saved = await googleSheetsService.appendRow('Pedidos', nuevo);
+      if (saved) {
+        setPedidos(prev => [saved as Pedido, ...prev]);
+      }
+    } catch (error) {
+      console.error("Error guardando pedido:", error);
+    }
   }, []);
 
   const actualizarPedido = useCallback(async (id: string, updates: Partial<Pedido>) => {

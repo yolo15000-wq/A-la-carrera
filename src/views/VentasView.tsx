@@ -57,6 +57,7 @@ export default function VentasView() {
   const [devolucion, setDevolucion]     = useState(0);
   const [cantidadContado, setCantidadContado] = useState(0);
   const [creditosItems, setCreditosItems]     = useState<CreditoItem[]>([]);
+  const [isNewClient, setIsNewClient]         = useState(false);
 
   // Nuevo crédito temporal
   const [nuevoCredito, setNuevoCredito] = useState<CreditoItem>({
@@ -145,7 +146,7 @@ export default function VentasView() {
     if (!nuevoCredito.clienteNombre.trim() || nuevoCredito.cantidad <= 0) return;
     setCreditosItems(prev => [...prev, nuevoCredito]);
     setNuevoCredito({ clienteNombre: '', telefono: '', direccion: '', fecha_cobro: '', cantidad: 0 });
-    setClienteSearch('');
+    setIsNewClient(false);
   };
 
   // ── Registrar liquidación completa ───────────────────────────────────────
@@ -513,23 +514,36 @@ export default function VentasView() {
                   <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Agregar Cliente</p>
 
                   {/* Buscar o escribir cliente */}
+                  <div className="flex gap-2 items-center mb-3">
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest bg-gray-100 px-3 py-1 rounded-full">
+                      {isNewClient ? 'Nuevo Cliente' : 'Cliente Existente'}
+                    </span>
+                    <button onClick={() => { setIsNewClient(!isNewClient); setNuevoCredito(p=>({...p, clienteNombre: ''})); }} 
+                       className="text-[10px] text-brand-500 font-bold underline cursor-pointer">
+                       {isNewClient ? 'Seleccionar uno existente' : '+ Crear Nuevo'}
+                    </button>
+                  </div>
+
                   <div className="relative">
-                    <input value={clienteSearch || nuevoCredito.clienteNombre}
-                      onChange={e => { setClienteSearch(e.target.value); setNuevoCredito(p => ({...p, clienteNombre: e.target.value})); setShowClienteSugg(true); }}
-                      placeholder="BUSCAR O ESCRIBIR NOMBRE..."
-                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-sm uppercase" />
-                    {showClienteSugg && sugerenciasCliente.length > 0 && (
-                      <div className="absolute z-10 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-40 overflow-y-auto">
-                        {sugerenciasCliente.map(c => (
-                          <button key={c.id} onClick={() => {
-                            setNuevoCredito(p => ({...p, clienteNombre: c.nombre, telefono: c.telefono, direccion: c.direccion}));
-                            setClienteSearch(c.nombre);
-                            setShowClienteSugg(false);
-                          }} className="w-full p-4 text-left hover:bg-gray-50 text-[10px] font-black uppercase border-b border-gray-50">
-                            {c.nombre} <span className="text-gray-400 font-normal">· {c.ruta}</span>
-                          </button>
-                        ))}
-                      </div>
+                    {!isNewClient ? (
+                       <select value={nuevoCredito.clienteNombre} 
+                         onChange={e => {
+                           const c = clientes.find(cli => cli.nombre === e.target.value);
+                           if (c) {
+                             setNuevoCredito(p => ({...p, clienteNombre: c.nombre, telefono: c.telefono || '', direccion: c.direccion || ''}));
+                           } else {
+                             setNuevoCredito(p => ({...p, clienteNombre: e.target.value}));
+                           }
+                         }}
+                         className="w-full bg-gray-50 rounded-2xl p-4 outline-none font-bold text-sm uppercase border border-gray-100 text-gray-700">
+                         <option value="">-- Seleccionar --</option>
+                         {clientes.map(c => <option key={c.id} value={c.nombre}>{c.nombre} · {c.ruta}</option>)}
+                       </select>
+                    ) : (
+                       <input value={nuevoCredito.clienteNombre}
+                         onChange={e => setNuevoCredito(p => ({...p, clienteNombre: e.target.value}))}
+                         placeholder="EJ: SUPERMERCADO LA 14..."
+                         className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-sm uppercase" />
                     )}
                   </div>
 

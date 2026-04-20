@@ -12,8 +12,11 @@ CREATE TABLE IF NOT EXISTS pedidos (
   producto    TEXT NOT NULL,
   cantidad    INTEGER NOT NULL,
   estado      TEXT DEFAULT 'Pendiente', -- 'Pendiente' | 'Entregado' | 'Cancelado'
+  nota        TEXT,
   created_at  TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS nota TEXT;
 
 -- 3. Índices para búsqueda rápida de la IA
 CREATE INDEX IF NOT EXISTS idx_pedidos_vendedor ON pedidos(vendedor);

@@ -14,7 +14,8 @@ export default function PedidosView() {
   const [form, setForm] = useState({
     cliente: '',
     producto: '',
-    cantidad: 0
+    cantidad: 0,
+    nota: ''
   });
 
   const misPedidos = pedidos.filter(p => user?.role === 'admin' || p.vendedor === user?.username);
@@ -23,18 +24,18 @@ export default function PedidosView() {
     if (!form.cliente || !form.producto || form.cantidad <= 0 || !user) return;
     setSaving(true);
     try {
-      const nuevo: Pedido = {
-        id: `PED-${Date.now()}`,
+      const nuevo: any = {
         fecha: new Date().toLocaleDateString('es-CO'),
         vendedor: user.username,
         cliente: form.cliente,
         producto: form.producto,
         cantidad: form.cantidad,
-        estado: 'Pendiente'
+        estado: 'Pendiente',
+        nota: form.nota
       };
       await registrarPedido(nuevo);
       setShowModal(false);
-      setForm({ cliente: '', producto: '', cantidad: 0 });
+      setForm({ cliente: '', producto: '', cantidad: 0, nota: '' });
     } finally {
       setSaving(false);
     }
@@ -69,6 +70,11 @@ export default function PedidosView() {
               </div>
               <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter leading-tight">{p.producto}</h3>
               <p className="text-4xl font-black text-gray-900 italic">{p.cantidad} <small className="text-xs font-bold uppercase">und</small></p>
+              {p.nota && (
+                 <p className="text-xs text-gray-500 font-bold bg-amber-50 rounded-xl p-3 border border-amber-100 mt-2">
+                   NOTA: {p.nota}
+                 </p>
+              )}
             </div>
 
             <div className="flex gap-2">
@@ -138,6 +144,12 @@ export default function PedidosView() {
                   <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Cantidad (UND)</label>
                   <input type="number" value={form.cantidad || ''} onChange={e => setForm(f => ({...f, cantidad: parseInt(e.target.value) || 0}))}
                     className="w-full bg-gray-50 p-5 rounded-3xl outline-none font-black text-3xl text-center text-brand-500" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Nota / Observación</label>
+                  <input type="text" value={form.nota || ''} onChange={e => setForm(f => ({...f, nota: e.target.value}))} placeholder="Ej: Entregar bien frío, Empaque extra..."
+                    className="w-full bg-gray-50 p-5 rounded-3xl outline-none font-bold text-sm text-gray-700" />
                 </div>
               </div>
 

@@ -16,7 +16,7 @@ interface Profile {
 
 export default function MaestrosView() {
   const { user } = useAuth();
-  const { products, recipes, addRecipe, addProduct, deleteProduct, deleteRecipe } = useCatalogos();
+  const { products, recipes, addRecipe, updateRecipe, addProduct, deleteProduct, deleteRecipe } = useCatalogos();
   const [activeTab, setActiveTab] = useState<'recetas' | 'productos' | 'personal'>('recetas');
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -26,6 +26,9 @@ export default function MaestrosView() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showProdModal, setShowProdModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
+  
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+  const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
   
   const [newUser, setNewUser] = useState({ username: '', pin: '', role: 'vendedor' as const, whatsapp: '' });
   const [newProd, setNewProd] = useState({ nombre: '', precio: '' });
@@ -87,9 +90,25 @@ export default function MaestrosView() {
   const handleCreateRecipe = () => {
     if (!newRecipe.nombre || !newRecipe.precio || newRecipe.ingredientes.length === 0) return;
     const slug = newRecipe.nombre.toLowerCase().replace(/ /g, '-');
-    addRecipe({ id: slug, nombre: newRecipe.nombre, precio: parseFloat(newRecipe.precio), ingredientes: newRecipe.ingredientes });
+    if (editingRecipeId) {
+      updateRecipe(editingRecipeId, { nombre: newRecipe.nombre, precio: parseFloat(newRecipe.precio), ingredientes: newRecipe.ingredientes });
+    } else {
+      addRecipe({ id: slug, nombre: newRecipe.nombre, precio: parseFloat(newRecipe.precio), ingredientes: newRecipe.ingredientes });
+    }
     setShowRecipeModal(false);
     setNewRecipe({ nombre: '', precio: '', ingrediente: '', cantidad: '', ingredientes: [] });
+    setEditingRecipeId(null);
+  };
+
+  const abrirEdicionReceta = (recipe: any) => {
+    setEditingRecipeId(recipe.id);
+    setNewRecipe({
+      nombre: recipe.nombre,
+      precio: recipe.precio.toString(),
+      ingrediente: '', cantidad: '',
+      ingredientes: recipe.ingredientes
+    });
+    setShowRecipeModal(true);
   };
 
   const addIngredient = () => {
@@ -135,7 +154,11 @@ export default function MaestrosView() {
             onClick={() => {
               if (activeTab === 'personal') setShowUserModal(true);
               if (activeTab === 'productos') setShowProdModal(true);
-              if (activeTab === 'recetas') setShowRecipeModal(true);
+              if (activeTab === 'recetas') {
+                setEditingRecipeId(null);
+                setNewRecipe({ nombre: '', precio: '', ingrediente: '', cantidad: '', ingredientes: [] });
+                setShowRecipeModal(true);
+              }
             }}
             className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition-all">
             <Plus className="h-4 w-4" /> Nueva {activeTab}
@@ -192,19 +215,40 @@ export default function MaestrosView() {
           {activeTab === 'recetas' && (
             <div className="p-6 space-y-4">
                {recipes.map(recipe => (
-                 <div key={recipe.id} className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between group hover:border-brand-500 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="size-12 bg-white dark:bg-gray-700 rounded-2xl flex items-center justify-center font-black text-brand-500 italic text-lg shadow-sm">
-                        {recipe.nombre.substring(0, 2)}
+                 <div key={recipe.id} className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm transition-all hover:border-brand-500">
+                    <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpandedRecipe(expandedRecipe === recipe.id ? null : recipe.id)}>
+                      <div className="flex items-center gap-4">
+                        <div className="size-12 bg-white dark:bg-gray-700 rounded-2xl flex items-center justify-center font-black text-brand-500 italic text-lg shadow-sm">
+                          {recipe.nombre.substring(0, 2)}
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter text-md leading-none">{recipe.nombre}</h4>
+                          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{recipe.ingredientes.length} INGREDIENTES · ${recipe.precio?.toLocaleString()}</p>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter text-md leading-none">{recipe.nombre}</h4>
-                        <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{recipe.ingredientes.length} INGREDIENTES</p>
-                      </div>
+                      <ChevronRight className={`text-gray-400 transition-transform ${expandedRecipe === recipe.id ? 'rotate-90' : ''}`} />
                     </div>
-                    <button onClick={() => deleteRecipe(recipe.id)} className="p-2 text-gray-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all">
-                      <Trash2 className="h-5 w-5" />
-                    </button>
+
+                    {expandedRecipe === recipe.id && (
+                      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 animate-in fade-in slide-in-from-top-2">
+                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
+                           {recipe.ingredientes.map((ing, i) => (
+                             <div key={i} className="flex justify-between items-center text-[10px] p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                               <span className="font-bold text-gray-600 dark:text-gray-300 uppercase">{ing.nombre}</span>
+                               <span className="font-black text-brand-500">{ing.cant} {ing.tipo === 'units' ? 'und' : 'g'}</span>
+                             </div>
+                           ))}
+                         </div>
+                         <div className="flex justify-end gap-2">
+                           <button onClick={(e) => { e.stopPropagation(); abrirEdicionReceta(recipe); }} className="px-4 py-2 bg-brand-50 text-brand-600 rounded-xl text-[10px] font-black uppercase hover:bg-brand-100 transition-colors">
+                             Ajustar Receta
+                           </button>
+                           <button onClick={(e) => { e.stopPropagation(); deleteRecipe(recipe.id); }} className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase hover:bg-rose-100 transition-colors">
+                             Eliminar
+                           </button>
+                         </div>
+                      </div>
+                    )}
                  </div>
                ))}
             </div>
@@ -217,7 +261,7 @@ export default function MaestrosView() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-xl border border-gray-200 dark:border-gray-700 overflow-hidden transform animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
-               <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase italic">Nueva Receta Maestra</h2>
+               <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase italic">{editingRecipeId ? 'Detalles de Receta' : 'Nueva Receta Maestra'}</h2>
                <button onClick={() => setShowRecipeModal(false)}><X /></button>
             </div>
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
