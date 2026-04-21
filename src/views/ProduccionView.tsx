@@ -28,10 +28,10 @@ export default function ProduccionView() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFinalizarModal, setShowFinalizarModal] = useState(false);
-  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number, bolsas: {nombre: string, cantidad: number}[]}[]>([]);
+  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number, bolsas: string[]}[]>([]);
   const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0 });
-  const [currentBolsas, setCurrentBolsas] = useState<{nombre: string, cantidad: number}[]>([]);
-  const [tempBolsa, setTempBolsa] = useState({ nombre: '', cantidad: 0 });
+  const [currentBolsas, setCurrentBolsas] = useState<string[]>([]);
+  const [tempBolsa, setTempBolsa] = useState('');
 
   const bolsasDisponibles = useMemo(() => insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')), [insumos]);
 
@@ -97,7 +97,7 @@ export default function ProduccionView() {
     setProductosFinales([]);
     setCurrentProd({ producto: '', cantidad: 0 });
     setCurrentBolsas([]);
-    setTempBolsa({ nombre: '', cantidad: 0 });
+    setTempBolsa('');
     setShowFinalizarModal(true);
   };
 
@@ -127,8 +127,9 @@ export default function ProduccionView() {
     // Guardar todos los productos y descontar bolsas
     const promesasProductos = productosFinales.map(async (pf) => {
       await agregarProductoTerminado(pf.producto, pf.cantidad);
-      for (const b of pf.bolsas) {
-        await descontarInsumoExtra(b.nombre, b.cantidad);
+      // Cada bolsa seleccionada se descuenta con la misma cantidad que el producto
+      for (const bolsaNombre of pf.bolsas) {
+        await descontarInsumoExtra(bolsaNombre, pf.cantidad);
       }
     });
     await Promise.all(promesasProductos);
@@ -147,13 +148,13 @@ export default function ProduccionView() {
     setProductosFinales(prev => [...prev, { ...currentProd, bolsas: currentBolsas }]);
     setCurrentProd({ producto: '', cantidad: 0 });
     setCurrentBolsas([]);
-    setTempBolsa({ nombre: '', cantidad: 0 });
+    setTempBolsa('');
   };
 
   const agregarBolsaTemp = () => {
-    if (!tempBolsa.nombre || tempBolsa.cantidad <= 0) return;
+    if (!tempBolsa || currentBolsas.includes(tempBolsa)) return;
     setCurrentBolsas(prev => [...prev, tempBolsa]);
-    setTempBolsa({ nombre: '', cantidad: 0 });
+    setTempBolsa('');
   };
 
   return (
@@ -287,7 +288,7 @@ export default function ProduccionView() {
                         <div>
                           <span className="text-gray-700 dark:text-gray-300">{pf.producto}</span>
                           {pf.bolsas.map((b, bi) => (
-                            <span key={bi} className="block text-[9px] text-orange-500 font-bold">📦 {b.nombre} × {b.cantidad}</span>
+                            <span key={bi} className="block text-[9px] text-orange-500 font-bold">📦 {b}</span>
                           ))}
                           {pf.bolsas.length === 0 && <span className="block text-[9px] text-gray-400">Sin bolsa</span>}
                         </div>
@@ -315,37 +316,31 @@ export default function ProduccionView() {
                     </select>
                   </div>
 
-                  {/* PASO 2: Bolsa(s) */}
+                  {/* PASO 2: Bolsa */}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-orange-500 uppercase tracking-widest block">2 · Bolsa utilizada</label>
-                    {/* bolsas ya agregadas a este producto */}
+                    <label className="text-[10px] font-black text-orange-500 uppercase tracking-widest block">2 · Bolsa</label>
+
                     {currentBolsas.length > 0 && (
-                      <div className="bg-orange-50 rounded-xl px-3 py-2 space-y-1">
+                      <div className="bg-orange-50 rounded-xl px-3 py-2 flex flex-wrap gap-2">
                         {currentBolsas.map((b, bi) => (
-                          <div key={bi} className="flex justify-between items-center text-[10px] font-bold uppercase text-orange-700">
-                            <span>📦 {b.nombre}</span>
-                            <div className="flex items-center gap-2">
-                              <span>{b.cantidad} und</span>
-                              <button onClick={() => setCurrentBolsas(prev => prev.filter((_, i) => i !== bi))}
-                                className="text-red-400 hover:text-red-600">✕</button>
-                            </div>
-                          </div>
+                          <span key={bi} className="flex items-center gap-1 bg-orange-100 text-orange-700 text-[10px] font-bold uppercase px-2 py-1 rounded-full">
+                            📦 {b}
+                            <button onClick={() => setCurrentBolsas(prev => prev.filter((_, i) => i !== bi))}
+                              className="text-red-400 hover:text-red-600 ml-1">✕</button>
+                          </span>
                         ))}
                       </div>
                     )}
-                    {/* Agregar una bolsa más */}
+
                     <div className="flex gap-2 items-center">
-                      <select value={tempBolsa.nombre} onChange={e => setTempBolsa(p => ({...p, nombre: e.target.value}))}
+                      <select value={tempBolsa} onChange={e => setTempBolsa(e.target.value)}
                         className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-3 outline-none font-bold text-xs uppercase border border-orange-200 focus:border-orange-400 appearance-none">
                         <option value="">-- Tipo de bolsa --</option>
-                        {bolsasDisponibles.map(b => (
+                        {bolsasDisponibles.filter(b => !currentBolsas.includes(b.insumo)).map(b => (
                           <option key={b.codigo} value={b.insumo}>{b.insumo} ({b.existencia} disp.)</option>
                         ))}
                       </select>
-                      <input type="number" value={tempBolsa.cantidad || ''} onChange={e => setTempBolsa(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
-                        placeholder="Cant" min={1}
-                        className="w-20 bg-white dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-center text-orange-600 border border-orange-200 focus:border-orange-400" />
-                      <button onClick={agregarBolsaTemp} disabled={!tempBolsa.nombre || tempBolsa.cantidad <= 0}
+                      <button onClick={agregarBolsaTemp} disabled={!tempBolsa}
                         className="size-11 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white rounded-xl font-black text-lg flex items-center justify-center active:scale-95 transition-all shrink-0">
                         +
                       </button>
