@@ -20,7 +20,7 @@ interface LoteBD {
 export default function ProduccionView() {
   const { user } = useAuth();
   const { recipes } = useCatalogos();
-  const { descontarInsumos, agregarProductoTerminado, descontarInsumoExtra } = useContext(InventarioContext);
+  const { descontarInsumos, agregarProductoTerminado, descontarInsumoExtra, insumos } = useContext(InventarioContext);
   const [lotes, setLotes] = useState<LoteBD[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ producto: '', tandas: 0 });
@@ -28,8 +28,10 @@ export default function ProduccionView() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFinalizarModal, setShowFinalizarModal] = useState(false);
-  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number}[]>([]);
-  const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0 });
+  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number, bolsa: string}[]>([]);
+  const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0, bolsa: '' });
+
+  const bolsasDisponibles = useMemo(() => insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')), [insumos]);
 
   useEffect(() => {
     async function loadLotes() {
@@ -91,7 +93,7 @@ export default function ProduccionView() {
   const prepararFinalizacion = () => {
     if (!batchActivo) return;
     setProductosFinales([]);
-    setCurrentProd({ producto: '', cantidad: 0 });
+    setCurrentProd({ producto: '', cantidad: 0, bolsa: '' });
     setShowFinalizarModal(true);
   };
 
@@ -121,7 +123,9 @@ export default function ProduccionView() {
     // Guardar todos los productos
     const promesasProductos = productosFinales.map(async (pf) => {
       await agregarProductoTerminado(pf.producto, pf.cantidad);
-      await descontarInsumoExtra(`Bolsa ${pf.producto}`, pf.cantidad);
+      if (pf.bolsa) {
+        await descontarInsumoExtra(pf.bolsa, pf.cantidad);
+      }
     });
     await Promise.all(promesasProductos);
     
@@ -137,7 +141,7 @@ export default function ProduccionView() {
   const agregarProdRow = () => {
     if (!currentProd.producto || currentProd.cantidad <= 0) return;
     setProductosFinales(prev => [...prev, currentProd]);
-    setCurrentProd({ producto: '', cantidad: 0 });
+    setCurrentProd({ producto: '', cantidad: 0, bolsa: '' });
   };
 
   return (
@@ -268,26 +272,44 @@ export default function ProduccionView() {
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 space-y-2 mb-4">
                     {productosFinales.map((pf, idx) => (
                       <div key={idx} className="flex justify-between items-center text-sm font-bold uppercase border-b border-gray-200 dark:border-gray-700 pb-2 last:border-0 last:pb-0">
-                        <span className="text-gray-700 dark:text-gray-300">{pf.producto}</span>
+                        <div>
+                          <span className="text-gray-700 dark:text-gray-300">{pf.producto}</span>
+                          {pf.bolsa && <span className="block text-[9px] text-orange-500 font-bold">📦 {pf.bolsa}</span>}
+                        </div>
                         <span className="text-brand-500">{pf.cantidad} UND</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Producto Empacado</label>
-                    <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({...p, producto: e.target.value}))}
-                      className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-xs uppercase appearance-none">
-                      <option value="">-- Producto --</option>
-                      {recipes.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
-                    </select>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Producto Empacado</label>
+                      <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({...p, producto: e.target.value}))}
+                        className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-xs uppercase appearance-none">
+                        <option value="">-- Producto --</option>
+                        {recipes.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+                      </select>
+                    </div>
+                    <div className="w-1/3">
+                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Cantidad</label>
+                      <input type="number" value={currentProd.cantidad || ''} onChange={e => setCurrentProd(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
+                        placeholder="0" className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-center text-brand-500" />
+                    </div>
                   </div>
-                  <div className="w-1/3">
-                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Cantidad</label>
-                    <input type="number" value={currentProd.cantidad || ''} onChange={e => setCurrentProd(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
-                      placeholder="0" className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-center text-brand-500" />
+
+                  <div>
+                    <label className="text-[10px] font-black text-orange-500 uppercase mb-1 block tracking-widest flex items-center gap-1">
+                      📦 Bolsa Utilizada
+                    </label>
+                    <select value={currentProd.bolsa} onChange={e => setCurrentProd(p => ({...p, bolsa: e.target.value}))}
+                      className="w-full bg-orange-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-bold text-xs uppercase appearance-none border border-orange-100 focus:border-orange-400">
+                      <option value="">-- Sin bolsa / No aplica --</option>
+                      {bolsasDisponibles.map(b => (
+                        <option key={b.codigo} value={b.insumo}>{b.insumo} ({b.existencia} disponibles)</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 

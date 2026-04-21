@@ -119,9 +119,15 @@ export default function MateriaPrimaView() {
         )}
       </div>
 
-      {/* Grid de tarjetas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {insumos.map(item => {
+      {/* ═══ SECCIÓN: MATERIA PRIMA ═══════════════════════════════════════════ */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <Package size={18} className="text-brand-500" />
+          <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase italic tracking-widest">Materia Prima</h3>
+          <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full uppercase">{insumos.filter(i => !i.insumo.toLowerCase().includes('bolsa')).length} insumos</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {insumos.filter(item => !item.insumo.toLowerCase().includes('bolsa')).map(item => {
           const min = STOCK_MINIMOS[item.insumo] ?? 0;
           const pct = min > 0 ? Math.min((item.existencia / min) * 100, 100) : 100;
           const critico = min > 0 && item.existencia < min;
@@ -164,6 +170,69 @@ export default function MateriaPrimaView() {
             </div>
           );
         })}
+        </div>
+      </div>
+
+      {/* ═══ SECCIÓN: BOLSAS / EMPAQUE ════════════════════════════════════════ */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <Package size={18} className="text-orange-500" />
+          <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase italic tracking-widest">Bolsas / Empaque</h3>
+          <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-3 py-1 rounded-full uppercase">{insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')).length} tipos</span>
+        </div>
+        {insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')).length === 0 ? (
+          <div className="bg-orange-50/50 border-2 border-dashed border-orange-200 rounded-[30px] p-10 text-center">
+            <Package size={40} className="mx-auto text-orange-200 mb-3" />
+            <p className="text-orange-400 font-black uppercase text-xs italic">No hay bolsas registradas</p>
+            <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">Usa "Nueva MP" y nombra el insumo con la palabra "Bolsa" (Ej: Bolsa Chorizo S)</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {insumos.filter(item => item.insumo.toLowerCase().includes('bolsa')).map(item => {
+              const min = STOCK_MINIMOS[item.insumo] ?? 0;
+              const pct = min > 0 ? Math.min((item.existencia / min) * 100, 100) : 100;
+              const critico = min > 0 && item.existencia < min;
+              return (
+                <div key={item.codigo}
+                  className={`bg-white dark:bg-gray-900 rounded-[35px] border p-6 transition-all group ${
+                    critico ? 'border-red-300 shadow-xl shadow-red-500/5' : 'border-orange-200 hover:border-orange-400 shadow-sm'}`}>
+
+                  <div className="flex items-center justify-between mb-6">
+                    <div className={`size-12 rounded-2xl flex items-center justify-center ${critico ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'}`}>
+                      {critico ? <AlertTriangle size={24} /> : <Package size={24} />}
+                    </div>
+                    <span className="text-[10px] font-black text-gray-300 uppercase italic">COD: {item.codigo}</span>
+                  </div>
+
+                  <div className="space-y-1 mb-6">
+                    <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tight">{item.insumo}</h4>
+                    <p className="text-[10px] text-orange-400 font-bold uppercase tracking-widest leading-none">Empaque</p>
+                  </div>
+
+                  <div className="flex items-baseline gap-2 mb-6">
+                    <p className="text-4xl font-black text-gray-900 dark:text-white italic tracking-tighter">
+                      {item.existencia.toLocaleString('es-CO')}
+                    </p>
+                    <span className="text-xs font-black text-gray-400 uppercase italic">{item.unidad}</span>
+                  </div>
+
+                  {min > 0 && (
+                    <div className="space-y-2">
+                      <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-700 ${critico ? 'bg-red-500' : pct < 50 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                          style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold uppercase text-gray-400">
+                        <span>Mín: {min.toLocaleString('es-CO')} {item.unidad}</span>
+                        <span className={critico ? 'text-red-600' : ''}>{Math.round(pct)}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Modal: Abastecer ──────────────────────────────────────────────── */}
