@@ -1,5 +1,5 @@
 import { useContext, useState, useMemo } from "react";
-import { Plus, AlertTriangle, Package, TrendingUp, X, Check } from "lucide-react";
+import { Plus, AlertTriangle, Package, TrendingUp, X, Check, Trash2 } from "lucide-react";
 import { STOCK_MINIMOS } from "../data/datos";
 import { InventarioContext } from "../context/InventarioContext";
 import { useAuth } from "../context/AuthContext";
@@ -7,7 +7,19 @@ import { supabase } from "../lib/supabase";
 
 export default function MateriaPrimaView() {
   const { user } = useAuth();
-  const { insumos, agregarInsumo } = useContext(InventarioContext);
+  const { insumos, agregarInsumo, eliminarInsumo } = useContext(InventarioContext);
+
+  const handleEliminar = async (codigo: string, nombre: string) => {
+    if (!window.confirm(`¿Seguro que quieres eliminar "${nombre}"?`)) return;
+    try {
+      await eliminarInsumo(codigo);
+      setOk(`✅ "${nombre}" eliminado`);
+      setTimeout(() => setOk(null), 3000);
+    } catch {
+      setOk(`❌ Error al eliminar "${nombre}"`);
+      setTimeout(() => setOk(null), 3000);
+    }
+  };
 
   const isAdmin = user?.role === 'admin';
 
@@ -172,7 +184,15 @@ export default function MateriaPrimaView() {
                 <div className={`size-12 rounded-2xl flex items-center justify-center ${critico ? 'bg-red-50 text-red-500' : 'bg-brand-50 text-brand-500'}`}>
                   {critico ? <AlertTriangle size={24} /> : <Package size={24} />}
                 </div>
-                <span className="text-[10px] font-black text-gray-300 uppercase italic">COD: {item.codigo}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-gray-300 uppercase italic">COD: {item.codigo}</span>
+                  {isAdmin && (
+                    <button onClick={() => handleEliminar(item.codigo, item.insumo)}
+                      className="opacity-0 group-hover:opacity-100 text-red-300 hover:text-red-600 transition-all p-1 rounded-lg hover:bg-red-50" title="Eliminar">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1 mb-6">
@@ -245,7 +265,15 @@ export default function MateriaPrimaView() {
                     <div className={`size-12 rounded-2xl flex items-center justify-center ${critico ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'}`}>
                       {critico ? <AlertTriangle size={24} /> : <Package size={24} />}
                     </div>
-                    <span className="text-[10px] font-black text-gray-300 uppercase italic">COD: {item.codigo}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-gray-300 uppercase italic">COD: {item.codigo}</span>
+                      {isAdmin && (
+                        <button onClick={() => handleEliminar(item.codigo, item.insumo)}
+                          className="opacity-0 group-hover:opacity-100 text-red-300 hover:text-red-600 transition-all p-1 rounded-lg hover:bg-red-50" title="Eliminar">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-1 mb-6">

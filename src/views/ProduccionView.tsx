@@ -279,80 +279,93 @@ export default function ProduccionView() {
               <p className="text-xs text-gray-500 font-bold uppercase">Base: {batchActivo.producto}</p>
               
               <div className="space-y-4 text-left">
-                {/* Listado de lo agregado */}
+                {/* Listado de productos ya confirmados */}
                 {productosFinales.length > 0 && (
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 space-y-2 mb-4">
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 space-y-2">
                     {productosFinales.map((pf, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm font-bold uppercase border-b border-gray-200 dark:border-gray-700 pb-2 last:border-0 last:pb-0">
+                      <div key={idx} className="flex justify-between items-start text-sm font-bold uppercase border-b border-gray-200 dark:border-gray-700 pb-2 last:border-0 last:pb-0">
                         <div>
                           <span className="text-gray-700 dark:text-gray-300">{pf.producto}</span>
                           {pf.bolsas.map((b, bi) => (
-                            <span key={bi} className="block text-[9px] text-orange-500 font-bold">📦 {b.nombre} x{b.cantidad}</span>
+                            <span key={bi} className="block text-[9px] text-orange-500 font-bold">📦 {b.nombre} × {b.cantidad}</span>
                           ))}
+                          {pf.bolsas.length === 0 && <span className="block text-[9px] text-gray-400">Sin bolsa</span>}
                         </div>
-                        <span className="text-brand-500">{pf.cantidad} UND</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-brand-500">{pf.cantidad} UND</span>
+                          <button onClick={() => setProductosFinales(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-red-400 hover:text-red-600 text-xs font-black">✕</button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Producto Empacado</label>
-                      <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({...p, producto: e.target.value}))}
-                        className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-xs uppercase appearance-none">
-                        <option value="">-- Producto --</option>
-                        {recipes.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
-                      </select>
-                    </div>
-                    <div className="w-1/3">
-                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block tracking-widest">Cantidad</label>
-                      <input type="number" value={currentProd.cantidad || ''} onChange={e => setCurrentProd(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
-                        placeholder="0" className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-center text-brand-500" />
-                    </div>
+                {/* Formulario de nuevo producto: Producto → Bolsa → Cantidad */}
+                <div className="border border-gray-100 dark:border-gray-700 rounded-2xl p-4 space-y-3">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nuevo producto</p>
+
+                  {/* PASO 1: Producto */}
+                  <div>
+                    <label className="text-[10px] font-black text-gray-500 uppercase mb-1 block tracking-widest">1 · Producto</label>
+                    <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({...p, producto: e.target.value}))}
+                      className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-xs uppercase appearance-none border border-gray-200 dark:border-gray-700 focus:border-brand-400">
+                      <option value="">-- Seleccionar --</option>
+                      {recipes.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+                    </select>
                   </div>
 
-                  {/* Bolsas agregadas a este producto */}
-                  {currentBolsas.length > 0 && (
-                    <div className="bg-orange-50 rounded-xl p-3 space-y-1">
-                      {currentBolsas.map((b, bi) => (
-                        <div key={bi} className="flex justify-between items-center text-[10px] font-bold uppercase text-orange-700">
-                          <span>📦 {b.nombre}</span>
-                          <div className="flex items-center gap-2">
-                            <span>{b.cantidad} und</span>
-                            <button onClick={() => setCurrentBolsas(prev => prev.filter((_, i) => i !== bi))} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                  {/* PASO 2: Bolsa(s) */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-orange-500 uppercase tracking-widest block">2 · Bolsa utilizada</label>
+                    {/* bolsas ya agregadas a este producto */}
+                    {currentBolsas.length > 0 && (
+                      <div className="bg-orange-50 rounded-xl px-3 py-2 space-y-1">
+                        {currentBolsas.map((b, bi) => (
+                          <div key={bi} className="flex justify-between items-center text-[10px] font-bold uppercase text-orange-700">
+                            <span>📦 {b.nombre}</span>
+                            <div className="flex items-center gap-2">
+                              <span>{b.cantidad} und</span>
+                              <button onClick={() => setCurrentBolsas(prev => prev.filter((_, i) => i !== bi))}
+                                className="text-red-400 hover:text-red-600">✕</button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Agregar bolsa */}
-                  <div className="p-3 bg-orange-50/50 rounded-xl border border-orange-100 space-y-2">
-                    <label className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-1">📦 Agregar Bolsa</label>
-                    <div className="flex gap-2">
+                        ))}
+                      </div>
+                    )}
+                    {/* Agregar una bolsa más */}
+                    <div className="flex gap-2 items-center">
                       <select value={tempBolsa.nombre} onChange={e => setTempBolsa(p => ({...p, nombre: e.target.value}))}
-                        className="flex-1 bg-white rounded-lg p-2 outline-none font-bold text-[10px] uppercase border border-orange-100">
+                        className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-3 outline-none font-bold text-xs uppercase border border-orange-200 focus:border-orange-400 appearance-none">
                         <option value="">-- Tipo de bolsa --</option>
                         {bolsasDisponibles.map(b => (
-                          <option key={b.codigo} value={b.insumo}>{b.insumo} ({b.existencia})</option>
+                          <option key={b.codigo} value={b.insumo}>{b.insumo} ({b.existencia} disp.)</option>
                         ))}
                       </select>
                       <input type="number" value={tempBolsa.cantidad || ''} onChange={e => setTempBolsa(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
-                        placeholder="Cant" className="w-20 bg-white rounded-lg p-2 outline-none font-black text-center text-orange-600 text-sm border border-orange-100" />
+                        placeholder="Cant" min={1}
+                        className="w-20 bg-white dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-center text-orange-600 border border-orange-200 focus:border-orange-400" />
                       <button onClick={agregarBolsaTemp} disabled={!tempBolsa.nombre || tempBolsa.cantidad <= 0}
-                        className="bg-orange-500 disabled:opacity-40 text-white px-3 rounded-lg font-black text-xs active:scale-95 transition-all">
+                        className="size-11 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white rounded-xl font-black text-lg flex items-center justify-center active:scale-95 transition-all shrink-0">
                         +
                       </button>
                     </div>
                   </div>
+
+                  {/* PASO 3: Cantidad */}
+                  <div>
+                    <label className="text-[10px] font-black text-gray-500 uppercase mb-1 block tracking-widest">3 · Cantidad empacada (und)</label>
+                    <input type="number" value={currentProd.cantidad || ''}
+                      onChange={e => setCurrentProd(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
+                      placeholder="0" min={1}
+                      className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-3xl text-center text-brand-500 border border-gray-200 dark:border-gray-700 focus:border-brand-400" />
+                  </div>
+
+                  <button onClick={agregarProdRow} disabled={!currentProd.producto || currentProd.cantidad <= 0}
+                    className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:bg-gray-200 disabled:text-gray-400 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all active:scale-95">
+                    + Agregar Producto
+                  </button>
                 </div>
-                
-                <button onClick={agregarProdRow} disabled={!currentProd.producto || currentProd.cantidad <= 0}
-                  className="w-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 disabled:opacity-50 text-gray-700 dark:text-white py-3 rounded-xl font-bold uppercase text-xs transition-all">
-                  + Agregar Producto
-                </button>
               </div>
               
               <div className="flex gap-3 mt-6">

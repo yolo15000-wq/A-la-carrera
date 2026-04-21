@@ -49,6 +49,7 @@ interface InventarioContextType {
   insumos: InsumoBD[];
   descontarInsumos: (ingredientes: RecetaLinea[], tandas: number) => void;
   agregarInsumo: (codigo: string, cantidad: number) => void;
+  eliminarInsumo: (codigo: string) => Promise<void>;
   descontarInsumoExtra: (nombreOcCodigo: string, cantidad: number) => void;
   productosTerminados: ProductoTerminado[];
   agregarProductoTerminado: (id: string, cantidad: number) => void;
@@ -66,6 +67,7 @@ export const InventarioContext = createContext<InventarioContextType>({
   insumos: MATERIA_PRIMA_INICIAL,
   descontarInsumos: () => {},
   agregarInsumo: () => {},
+  eliminarInsumo: async () => {},
   descontarInsumoExtra: () => {},
   productosTerminados: PRODUCTOS_TERMINADOS_INICIALES,
   agregarProductoTerminado: () => {},
@@ -206,6 +208,16 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const eliminarInsumo = useCallback(async (codigo: string) => {
+    try {
+      await googleSheetsService.deleteRow('Inventario', 'codigo', codigo);
+      setInsumos(prev => prev.filter(i => i.codigo !== codigo));
+    } catch (error) {
+      console.error("Error al eliminar insumo:", error);
+      throw error;
+    }
+  }, []);
+
   const descontarInsumoExtra = useCallback((nombreOcCodigo: string, cantidad: number) => {
     setInsumos(prev => prev.map(i => {
       if (i.codigo.toLowerCase() === nombreOcCodigo.toLowerCase() || i.insumo.toLowerCase().includes(nombreOcCodigo.toLowerCase())) {
@@ -285,7 +297,10 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
 
   return (
     <InventarioContext.Provider value={{
-      insumos, descontarInsumos, agregarInsumo, descontarInsumoExtra,
+      insumos,      descontarInsumos,
+      agregarInsumo,
+      eliminarInsumo,
+      descontarInsumoExtra,
       productosTerminados, agregarProductoTerminado, descontarProductoTerminado,
       creditos, registrarCredito, marcarPagoCredito,
       pedidos, registrarPedido, actualizarPedido,
