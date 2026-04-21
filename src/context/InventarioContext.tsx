@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { MATERIA_PRIMA_INICIAL, STOCK_CENTRAL_INICIAL } from "../data/datos";
 import type { InsumoBD, RecetaLinea } from "../data/datos";
 import { googleSheetsService } from "../services/googleSheetsService";
+import { supabase } from "../lib/supabase";
 
 // Tipos base
 export interface ProductoTerminado {
@@ -188,9 +189,16 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
 
   const descontarInsumos = useCallback((ingredientes: RecetaLinea[], tandas: number) => {
     setInsumos(prev => prev.map(insumo => {
-        const ing = ingredientes.find(i => i.insumo.toLowerCase() === insumo.insumo.toLowerCase());
+        // Buscar coincidencia exacta primero, luego parcial
+        const ing = ingredientes.find(i =>
+          i.insumo.toLowerCase() === insumo.insumo.toLowerCase()
+        ) ?? ingredientes.find(i =>
+          insumo.insumo.toLowerCase().includes(i.insumo.toLowerCase()) ||
+          i.insumo.toLowerCase().includes(insumo.insumo.toLowerCase())
+        );
         if (!ing) return insumo;
-        const cantidad = ing.cantidad_gr * tandas;
+        const cantidad = (ing.cantidad_gr ?? 0) * tandas;
+        if (cantidad <= 0) return insumo;
         const nuevaExistencia = Math.max(0, insumo.existencia - cantidad);
         googleSheetsService.updateRow('Inventario', 'codigo', insumo.codigo, { existencia: nuevaExistencia });
         return { ...insumo, existencia: nuevaExistencia };
@@ -230,20 +238,55 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const agregarProductoTerminado = useCallback((idOrName: string, cantidad: number) => {
+    // 1. Actualizar estado local
     setProductosTerminados(prev => {
       const cleanSearch = idOrName.toLowerCase().trim();
-      let index = prev.findIndex(p => p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase() === cleanSearch);
+      let index = prev.findIndex(p =>
+        p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase() === cleanSearch
+      );
       if (index === -1) {
-          index = prev.findIndex(p => p.nombre.toLowerCase().includes(cleanSearch) || cleanSearch.includes(p.nombre.toLowerCase()));
+        index = prev.findIndex(p =>
+          p.nombre.toLowerCase().includes(cleanSearch) ||
+          cleanSearch.includes(p.nombre.toLowerCase())
+        );
       }
-      if (index === -1) return prev;
-      const nuevoState = [...prev];
-      const producto = nuevoState[index];
-      const nuevoStock = producto.stock + cantidad;
-      nuevoState[index] = { ...producto, stock: nuevoStock };
-      // Supabase usa 'slug' como clave en la tabla productos
-      googleSheetsService.updateRow('ProductosTerminados', 'slug', producto.id, { stock: nuevoStock });
-      return nuevoState;
+
+      if (index !== -1) {
+        // Producto ya existe localmente → actualizar
+        const nuevoState = [...prev];
+        const producto = nuevoState[index];
+        const nuevoStock = producto.stock + cantidad;
+        nuevoState[index] = { ...producto, stock: nuevoStock };
+        // Persistir en Supabase por nombre (más confiable que slug)
+        supabase
+          .from('productos')
+          .update({ stock: nuevoStock })
+          .or(`slug.eq.${producto.id},nombre.eq.${producto.nombre}`)
+          .then(({ error }) => {
+            if (error) console.error('[agregarProducto] update error:', error);
+          });
+        return nuevoState;
+      } else {
+        // Producto no existe localmente → crear en estado y en Supabase
+        const slug = idOrName.toLowerCase().replace(/\s+/g, '-');
+        const nuevo: ProductoTerminado = {
+          id: slug,
+          nombre: idOrName,
+          descripcion: '',
+          stock: cantidad,
+          unidad: 'und',
+          precio_venta: 0,
+          stock_minimo: 0,
+        };
+        supabase
+          .from('productos')
+          .upsert({ slug, nombre: idOrName, stock: cantidad, unidad: 'und', precio: 0, stock_minimo: 0 },
+                  { onConflict: 'slug' })
+          .then(({ error }) => {
+            if (error) console.error('[agregarProducto] upsert error:', error);
+          });
+        return [...prev, nuevo];
+      }
     });
   }, []);
 
