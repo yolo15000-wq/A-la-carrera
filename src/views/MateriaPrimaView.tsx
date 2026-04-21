@@ -21,6 +21,10 @@ export default function MateriaPrimaView() {
   const [saving, setSaving]         = useState(false);
   const [ok, setOk]                 = useState<string | null>(null);
 
+  // ── Modal nueva bolsa ──────────────────────────────────────────────────
+  const [showNuevaBolsa, setShowNuevaBolsa] = useState(false);
+  const [nuevaBolsa, setNuevaBolsa] = useState({ nombre: '', existencia: 0 });
+
   // Insumo seleccionado (para mostrar su unidad en el modal de abastecer)
   const insumoSeleccionado = useMemo(
     () => insumos.find(i => i.codigo === compra.codigo),
@@ -72,6 +76,34 @@ export default function MateriaPrimaView() {
     } catch (e) {
       console.error(e);
       setOk("❌ Error al guardar. Revisa la consola.");
+      setTimeout(() => setOk(null), 5000);
+    }
+    setSaving(false);
+  };
+
+  // ── Registrar nueva bolsa ────────────────────────────────────────
+  const registrarBolsa = async () => {
+    if (!nuevaBolsa.nombre.trim()) return;
+    setSaving(true);
+    try {
+      const nombreFinal = nuevaBolsa.nombre.toLowerCase().includes('bolsa')
+        ? nuevaBolsa.nombre.trim()
+        : `Bolsa ${nuevaBolsa.nombre.trim()}`;
+      const codigo = `BLS-${nombreFinal.slice(0,6).toUpperCase().replace(/\s/g,'')}-${Date.now()}`;
+      const { error } = await supabase.from('inventario').insert([{
+        codigo,
+        insumo:     nombreFinal,
+        existencia: nuevaBolsa.existencia,
+        unidad:     'und',
+      }]);
+      if (error) throw error;
+      setShowNuevaBolsa(false);
+      setNuevaBolsa({ nombre: '', existencia: 0 });
+      setOk("✅ Bolsa registrada — recarga para verla en la lista");
+      setTimeout(() => setOk(null), 5000);
+    } catch (e) {
+      console.error(e);
+      setOk("❌ Error al guardar bolsa.");
       setTimeout(() => setOk(null), 5000);
     }
     setSaving(false);
@@ -175,16 +207,28 @@ export default function MateriaPrimaView() {
 
       {/* ═══ SECCIÓN: BOLSAS / EMPAQUE ════════════════════════════════════════ */}
       <div>
-        <div className="flex items-center gap-3 mb-4">
-          <Package size={18} className="text-orange-500" />
-          <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase italic tracking-widest">Bolsas / Empaque</h3>
-          <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-3 py-1 rounded-full uppercase">{insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')).length} tipos</span>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Package size={18} className="text-orange-500" />
+            <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase italic tracking-widest">Bolsas / Empaque</h3>
+            <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-3 py-1 rounded-full uppercase">{insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')).length} tipos</span>
+          </div>
+          {isAdmin && (
+            <button onClick={() => setShowNuevaBolsa(true)}
+              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 transition-all">
+              <Plus className="h-4 w-4" /> Nueva Bolsa
+            </button>
+          )}
         </div>
         {insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')).length === 0 ? (
           <div className="bg-orange-50/50 border-2 border-dashed border-orange-200 rounded-[30px] p-10 text-center">
             <Package size={40} className="mx-auto text-orange-200 mb-3" />
             <p className="text-orange-400 font-black uppercase text-xs italic">No hay bolsas registradas</p>
-            <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">Usa "Nueva MP" y nombra el insumo con la palabra "Bolsa" (Ej: Bolsa Chorizo S)</p>
+            {isAdmin && (
+              <button onClick={() => setShowNuevaBolsa(true)} className="mt-3 text-orange-500 text-[10px] font-black uppercase tracking-widest hover:underline">
+                + Agregar primera bolsa
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -354,6 +398,49 @@ export default function MateriaPrimaView() {
               <button onClick={registrarNueva} disabled={!nueva.nombre.trim() || saving}
                 className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-brand-500/30 transition-all active:scale-95">
                 {saving ? "GUARDANDO..." : "REGISTRAR INSUMO"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Nueva Bolsa ────────────────────────────────────────────── */}
+      {showNuevaBolsa && isAdmin && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-10 space-y-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black uppercase italic tracking-tighter">Nueva Bolsa</h2>
+                  <p className="text-[10px] text-orange-500 font-bold uppercase tracking-widest mt-1">📦 Registro de empaque</p>
+                </div>
+                <button onClick={() => setShowNuevaBolsa(false)} className="text-gray-300 hover:text-gray-600"><X size={20} /></button>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Nombre de la Bolsa</label>
+                  <input type="text" value={nuevaBolsa.nombre}
+                    onChange={e => setNuevaBolsa(p => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Ej: Chorizo S, Grande, Vacío 1kg..."
+                    className="w-full bg-gray-50 rounded-2xl p-4 outline-none font-bold border border-orange-100 focus:border-orange-400" />
+                  <p className="text-[9px] text-gray-400 font-bold mt-1 uppercase">
+                    Se guardará como: <span className="text-orange-500">{nuevaBolsa.nombre ? (nuevaBolsa.nombre.toLowerCase().includes('bolsa') ? nuevaBolsa.nombre : `Bolsa ${nuevaBolsa.nombre}`) : 'Bolsa ...'}</span>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Stock Inicial (unidades)</label>
+                  <input type="number" value={nuevaBolsa.existencia || ''}
+                    onChange={e => setNuevaBolsa(p => ({ ...p, existencia: parseInt(e.target.value) || 0 }))}
+                    placeholder="0"
+                    className="w-full bg-gray-50 rounded-2xl p-4 outline-none font-black text-2xl text-center text-orange-500 border border-orange-100 focus:border-orange-400" />
+                </div>
+              </div>
+
+              <button onClick={registrarBolsa} disabled={!nuevaBolsa.nombre.trim() || saving}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-6 rounded-[24px] font-black uppercase tracking-[2px] shadow-2xl shadow-orange-500/30 transition-all active:scale-95">
+                {saving ? "GUARDANDO..." : "REGISTRAR BOLSA"}
               </button>
             </div>
           </div>

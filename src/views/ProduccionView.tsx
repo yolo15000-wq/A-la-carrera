@@ -28,8 +28,10 @@ export default function ProduccionView() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFinalizarModal, setShowFinalizarModal] = useState(false);
-  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number, bolsa: string}[]>([]);
-  const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0, bolsa: '' });
+  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number, bolsas: {nombre: string, cantidad: number}[]}[]>([]);
+  const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0 });
+  const [currentBolsas, setCurrentBolsas] = useState<{nombre: string, cantidad: number}[]>([]);
+  const [tempBolsa, setTempBolsa] = useState({ nombre: '', cantidad: 0 });
 
   const bolsasDisponibles = useMemo(() => insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')), [insumos]);
 
@@ -93,7 +95,9 @@ export default function ProduccionView() {
   const prepararFinalizacion = () => {
     if (!batchActivo) return;
     setProductosFinales([]);
-    setCurrentProd({ producto: '', cantidad: 0, bolsa: '' });
+    setCurrentProd({ producto: '', cantidad: 0 });
+    setCurrentBolsas([]);
+    setTempBolsa({ nombre: '', cantidad: 0 });
     setShowFinalizarModal(true);
   };
 
@@ -120,11 +124,11 @@ export default function ProduccionView() {
 
     await googleSheetsService.updateRow('Produccion', 'id_lote', id, updates);
 
-    // Guardar todos los productos
+    // Guardar todos los productos y descontar bolsas
     const promesasProductos = productosFinales.map(async (pf) => {
       await agregarProductoTerminado(pf.producto, pf.cantidad);
-      if (pf.bolsa) {
-        await descontarInsumoExtra(pf.bolsa, pf.cantidad);
+      for (const b of pf.bolsas) {
+        await descontarInsumoExtra(b.nombre, b.cantidad);
       }
     });
     await Promise.all(promesasProductos);
@@ -140,8 +144,16 @@ export default function ProduccionView() {
 
   const agregarProdRow = () => {
     if (!currentProd.producto || currentProd.cantidad <= 0) return;
-    setProductosFinales(prev => [...prev, currentProd]);
-    setCurrentProd({ producto: '', cantidad: 0, bolsa: '' });
+    setProductosFinales(prev => [...prev, { ...currentProd, bolsas: currentBolsas }]);
+    setCurrentProd({ producto: '', cantidad: 0 });
+    setCurrentBolsas([]);
+    setTempBolsa({ nombre: '', cantidad: 0 });
+  };
+
+  const agregarBolsaTemp = () => {
+    if (!tempBolsa.nombre || tempBolsa.cantidad <= 0) return;
+    setCurrentBolsas(prev => [...prev, tempBolsa]);
+    setTempBolsa({ nombre: '', cantidad: 0 });
   };
 
   return (
@@ -274,7 +286,9 @@ export default function ProduccionView() {
                       <div key={idx} className="flex justify-between items-center text-sm font-bold uppercase border-b border-gray-200 dark:border-gray-700 pb-2 last:border-0 last:pb-0">
                         <div>
                           <span className="text-gray-700 dark:text-gray-300">{pf.producto}</span>
-                          {pf.bolsa && <span className="block text-[9px] text-orange-500 font-bold">📦 {pf.bolsa}</span>}
+                          {pf.bolsas.map((b, bi) => (
+                            <span key={bi} className="block text-[9px] text-orange-500 font-bold">📦 {b.nombre} x{b.cantidad}</span>
+                          ))}
                         </div>
                         <span className="text-brand-500">{pf.cantidad} UND</span>
                       </div>
@@ -299,17 +313,39 @@ export default function ProduccionView() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[10px] font-black text-orange-500 uppercase mb-1 block tracking-widest flex items-center gap-1">
-                      📦 Bolsa Utilizada
-                    </label>
-                    <select value={currentProd.bolsa} onChange={e => setCurrentProd(p => ({...p, bolsa: e.target.value}))}
-                      className="w-full bg-orange-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-bold text-xs uppercase appearance-none border border-orange-100 focus:border-orange-400">
-                      <option value="">-- Sin bolsa / No aplica --</option>
-                      {bolsasDisponibles.map(b => (
-                        <option key={b.codigo} value={b.insumo}>{b.insumo} ({b.existencia} disponibles)</option>
+                  {/* Bolsas agregadas a este producto */}
+                  {currentBolsas.length > 0 && (
+                    <div className="bg-orange-50 rounded-xl p-3 space-y-1">
+                      {currentBolsas.map((b, bi) => (
+                        <div key={bi} className="flex justify-between items-center text-[10px] font-bold uppercase text-orange-700">
+                          <span>📦 {b.nombre}</span>
+                          <div className="flex items-center gap-2">
+                            <span>{b.cantidad} und</span>
+                            <button onClick={() => setCurrentBolsas(prev => prev.filter((_, i) => i !== bi))} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                          </div>
+                        </div>
                       ))}
-                    </select>
+                    </div>
+                  )}
+
+                  {/* Agregar bolsa */}
+                  <div className="p-3 bg-orange-50/50 rounded-xl border border-orange-100 space-y-2">
+                    <label className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-1">📦 Agregar Bolsa</label>
+                    <div className="flex gap-2">
+                      <select value={tempBolsa.nombre} onChange={e => setTempBolsa(p => ({...p, nombre: e.target.value}))}
+                        className="flex-1 bg-white rounded-lg p-2 outline-none font-bold text-[10px] uppercase border border-orange-100">
+                        <option value="">-- Tipo de bolsa --</option>
+                        {bolsasDisponibles.map(b => (
+                          <option key={b.codigo} value={b.insumo}>{b.insumo} ({b.existencia})</option>
+                        ))}
+                      </select>
+                      <input type="number" value={tempBolsa.cantidad || ''} onChange={e => setTempBolsa(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
+                        placeholder="Cant" className="w-20 bg-white rounded-lg p-2 outline-none font-black text-center text-orange-600 text-sm border border-orange-100" />
+                      <button onClick={agregarBolsaTemp} disabled={!tempBolsa.nombre || tempBolsa.cantidad <= 0}
+                        className="bg-orange-500 disabled:opacity-40 text-white px-3 rounded-lg font-black text-xs active:scale-95 transition-all">
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
