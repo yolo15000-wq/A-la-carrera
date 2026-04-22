@@ -161,18 +161,22 @@ export default function VentasView() {
     );
     const precioUnitario = productoObj?.precio ?? 0;
 
+    // Base sin salida_id para evitar problemas de FK
     const base = {
-      salida_id: salidaActual.id, fecha,
+      fecha,
       vendedor: salidaActual.vendedor, ruta: salidaActual.ruta,
       producto: salidaActual.producto, precio_unitario: precioUnitario,
-      cantidad_salida: salidaActual.cantidad_salida
+      cantidad_salida: salidaActual.cantidad_salida,
+      cantidad_devolucion: 0,
     };
+    let hayError = false;
 
     // 1. Registrar venta de contado
     if (cantidadContado > 0) {
       const totalContado = cantidadContado * precioUnitario;
-      const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado, cantidad_devolucion: 0 };
-      await googleSheetsService.appendRow('Liquidacion', liqContado);
+      const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado };
+      const res = await googleSheetsService.appendRow('Liquidacion', liqContado);
+      if (!res) hayError = true;
       setHistorial(prev => [liqContado, ...prev]);
     }
 
@@ -184,13 +188,13 @@ export default function VentasView() {
         ...base,
         id: `LIQ-${Date.now()}-CR-${cr.clienteNombre.replace(/\s/g,'')}`,
         tipo_pago: 'Crédito',
-        cantidad_venta: cr.cantidad,         // unidades
-        total_pesos: montoPesos,             // valor en $
-        cantidad_devolucion: 0,
+        cantidad_venta: cr.cantidad,
+        total_pesos: montoPesos,
         cliente: cr.clienteNombre, telefono: cr.telefono,
         direccion: cr.direccion, fecha_cobro: cr.fecha_cobro,
       };
-      await googleSheetsService.appendRow('Liquidacion', liqCred);
+      const resCred = await googleSheetsService.appendRow('Liquidacion', liqCred);
+      if (!resCred) hayError = true;
       setHistorial(prev => [liqCred, ...prev]);
 
       // Registrar crédito en cartera (monto en PESOS, no en unidades)
@@ -215,6 +219,10 @@ export default function VentasView() {
           vendedor: salidaActual.vendedor,
         });
       }
+    }
+
+    if (hayError) {
+      alert('⚠️ Error al guardar liquidación en la base de datos. Verifica tu conexión e intenta de nuevo.');
     }
 
     // 3. Devolucion → reintegrar stock
