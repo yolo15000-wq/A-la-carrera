@@ -82,28 +82,38 @@ export default function ReportesView() {
 
   // ── KPIs ──────────────────────────────────────────────────────────────
   const kpi = useMemo(() => {
+    // Helper: calcular valor de una liquidación con fallback
+    const valorLiq = (l: any) => {
+      const totalPesos = Number(l.total_pesos) || 0;
+      if (totalPesos > 0) return totalPesos;
+      // Fallback: precio_unitario × cantidad_venta
+      return (Number(l.precio_unitario) || 0) * (Number(l.cantidad_venta) || 0);
+    };
+
     const totalUnidades = liqPeriodo.reduce((a, l) => a + (Number(l.cantidad_venta) || 0), 0);
-    const totalPesos    = liqPeriodo.reduce((a, l) => a + (Number(l.total_pesos)    || 0), 0);
+    const totalPesos    = liqPeriodo.reduce((a, l) => a + valorLiq(l), 0);
     const totalContado  = liqPeriodo.filter(l => l.tipo_pago === "Contado")
-                                    .reduce((a, l) => a + (Number(l.total_pesos) || 0), 0);
+                                    .reduce((a, l) => a + valorLiq(l), 0);
     const totalCredito  = liqPeriodo.filter(l => l.tipo_pago === "Crédito")
-                                    .reduce((a, l) => a + (Number(l.total_pesos) || 0), 0);
+                                    .reduce((a, l) => a + valorLiq(l), 0);
     const creditosPend  = creditos.filter(c => c.estado === "Pendiente")
                                   .reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0);
-    const unidadProd    = prodPeriodo.reduce((a, p) => a + (Number(p.unidades_producidas) || 0), 0);
+    const unidadProd    = prodPeriodo.reduce((a, p) => a + (Number(p.unidades_reales) || Number(p.unidades_producidas) || 0), 0);
 
     // Por vendedor
     const porVendedor: Record<string, { unidades: number; pesos: number }> = {};
     liqPeriodo.forEach(l => {
+      if (!l.vendedor) return;
       if (!porVendedor[l.vendedor]) porVendedor[l.vendedor] = { unidades: 0, pesos: 0 };
       porVendedor[l.vendedor].unidades += Number(l.cantidad_venta) || 0;
-      porVendedor[l.vendedor].pesos    += Number(l.total_pesos)    || 0;
+      porVendedor[l.vendedor].pesos    += valorLiq(l);
     });
 
     // Por producto
     const porProducto: Record<string, number> = {};
     liqPeriodo.forEach(l => {
-      porProducto[l.producto] = (porProducto[l.producto] || 0) + (Number(l.total_pesos) || 0);
+      if (!l.producto) return;
+      porProducto[l.producto] = (porProducto[l.producto] || 0) + valorLiq(l);
     });
 
     return { totalUnidades, totalPesos, totalContado, totalCredito, creditosPend, unidadProd, porVendedor, porProducto };
