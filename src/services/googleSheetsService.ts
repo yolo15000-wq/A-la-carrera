@@ -56,9 +56,12 @@ async function appendRow(sheet: SheetName, row: any): Promise<any> {
     // Refrescar caché
     await getSheetData(sheet);
     return data;
-  } catch (err) {
-    console.error(`[appendRow] ${sheet}:`, err);
-    // Guardar en cola offline
+  } catch (err: any) {
+    console.error(`[appendRow Error] ${sheet}:`, err);
+    // Mostrar error exacto para diagnóstico
+    alert(`❌ Error al guardar en ${sheet}: ${err.message || 'Error desconocido'}`);
+    
+    // Guardar en cola offline como respaldo
     const queue = JSON.parse(localStorage.getItem('alc_offline_queue') ?? '[]');
     queue.push({ action: 'insert', sheet, row, ts: Date.now() });
     localStorage.setItem('alc_offline_queue', JSON.stringify(queue));

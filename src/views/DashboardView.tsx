@@ -1,4 +1,4 @@
-﻿import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
 import { useState, useEffect, useContext, useMemo } from "react";
 import { InventarioContext } from "../context/InventarioContext";
 import { googleSheetsService } from "../services/googleSheetsService";
@@ -37,9 +37,13 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
           if (ventas) setActivosRuta(ventas.filter((s: any) => s.estado === 'En Ruta'));
           if (lotes) setActivosProd(lotes.filter((l: any) => l.estado === 'En Proceso'));
           
-          // Calcular metas basadas en liquidaciones del día
-          const totalVentas = (liq || []).reduce((a: number, b: any) => a + (Number(b.cantidad_venta) || 0), 0);
-          setMetasGlobales({ ventas: totalVentas, cobros: creditos.length });
+          // Calcular ventas en pesos basadas en liquidaciones del día
+          const totalVentasPesos = (liq || []).reduce((a: number, b: any) => {
+             const valor = Number(b.total_pesos) || (Number(b.precio_unitario) || 0) * (Number(b.cantidad_venta) || 0);
+             return a + valor;
+          }, 0);
+          
+          setMetasGlobales({ ventas: totalVentasPesos, cobros: creditos.length });
         } catch (e) { console.warn(e); }
       };
       loadActivos();
@@ -130,7 +134,7 @@ export default function DashboardView({ onViewChange }: DashboardViewProps) {
       {/* Dynamic Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Unidades Vendidas', val: metasGlobales.ventas.toLocaleString(), icon: Package, col: 'blue' },
+          { label: 'Ventas Hoy $', val: `$${metasGlobales.ventas.toLocaleString('es-CO')}`, icon: Package, col: 'blue' },
           { label: 'Cartera Total', val: `$${totalCartera.toLocaleString('es-CO')}`, icon: DollarSign, col: 'emerald' },
           { label: 'Stock Central', val: `${stockTotal} und`, icon: Activity, col: 'amber' },
           { label: 'Clientes Deuda', val: metasGlobales.cobros, icon: Users, col: 'purple' },

@@ -13,9 +13,19 @@ const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
 
 function parseDate(str: string): Date | null {
   if (!str) return null;
-  const [d, m, y] = str.split("/").map(Number);
-  if (!d || !m || !y) return null;
-  return new Date(y, m - 1, d);
+  // Intenta formato DD/MM/YYYY
+  if (str.includes("/")) {
+    const [d, m, y] = str.split("/").map(Number);
+    if (d && m && y) return new Date(y, m - 1, d);
+  }
+  // Intenta formato YYYY-MM-DD
+  if (str.includes("-")) {
+    const [y, m, d] = str.split("-").map(Number);
+    if (y && m && d) return new Date(y, m - 1, d);
+  }
+  // Fallback para objetos Date directos
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 // Exportar como CSV (abre en Excel)
