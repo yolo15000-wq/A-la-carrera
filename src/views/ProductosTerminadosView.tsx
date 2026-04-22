@@ -1,9 +1,24 @@
-﻿import { useContext, useEffect, useState } from "react";
-import { PackageCheck, ArrowUpCircle, TrendingUp, AlertTriangle, X, CheckCircle } from "lucide-react";
+import { useContext, useEffect, useState } from "react";
+import { PackageCheck, ArrowUpCircle, TrendingUp, AlertTriangle, X, CheckCircle, Trash2 } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function ProductosTerminadosView() {
-  const { productosTerminados } = useContext(InventarioContext);
+  const { productosTerminados, agregarProductoTerminado, descontarProductoTerminado, eliminarProductoTerminado } = useContext(InventarioContext);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
+  const handleEliminar = async (id: string, nombre: string) => {
+    if (!window.confirm(`¿Eliminar "${nombre}" permanentemente? Esto no se puede deshacer.`)) return;
+    try {
+      await eliminarProductoTerminado(id);
+      setMensaje(`✅ "${nombre}" eliminado correctamente`);
+      setTimeout(() => setMensaje(''), 3000);
+    } catch {
+      setMensaje(`❌ Error al eliminar "${nombre}"`);
+      setTimeout(() => setMensaje(''), 3000);
+    }
+  };
 
   // Efecto para confirmar que recibimos actualizaciones
   useEffect(() => {
@@ -15,7 +30,7 @@ export default function ProductosTerminadosView() {
   const valorTotal = productosTerminados.reduce((acc, current) => acc + (current.stock * current.precio_venta), 0);
   const bajosStock = productosTerminados.filter(p => p.stock < p.stock_minimo).length;
 
-  const { agregarProductoTerminado, descontarProductoTerminado } = useContext(InventarioContext);
+
   const [showModal, setShowModal] = useState(false);
   const [ajusteForm, setAjusteForm] = useState({ id: '', cantidad: 0, tipo: 'ingreso' });
   const [mensaje, setMensaje] = useState("");
@@ -87,11 +102,19 @@ export default function ProductosTerminadosView() {
           const critico = p.stock < p.stock_minimo;
           return (
             <div key={p.id} className={`bg-white dark:bg-gray-900 rounded-2xl border shadow-sm p-5 transition-all hover:shadow-md ${critico ? 'border-rose-300 dark:border-rose-800' : 'border-gray-100 dark:border-gray-800'}`}>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 group">
                 <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest ${critico ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30'}`}>
                   {critico ? 'Stock Bajo' : 'Excelente'}
                 </span>
-                <span className="text-[10px] text-gray-400 font-mono">ID: {p.id}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400 font-mono">ID: {p.id}</span>
+                  {isAdmin && (
+                    <button onClick={() => handleEliminar(p.id, p.nombre)}
+                      className="opacity-0 group-hover:opacity-100 text-red-300 hover:text-red-600 transition-all p-1 rounded-lg hover:bg-red-50" title="Eliminar producto">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
               
               <div className="mb-4">

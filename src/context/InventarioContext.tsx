@@ -55,6 +55,7 @@ interface InventarioContextType {
   productosTerminados: ProductoTerminado[];
   agregarProductoTerminado: (id: string, cantidad: number) => void;
   descontarProductoTerminado: (id: string, cantidad: number) => void;
+  eliminarProductoTerminado: (id: string) => Promise<void>;
   creditos: Credito[];
   registrarCredito: (nuevo: Credito) => void;
   marcarPagoCredito: (id_credito: string | number) => void;
@@ -73,6 +74,7 @@ export const InventarioContext = createContext<InventarioContextType>({
   productosTerminados: PRODUCTOS_TERMINADOS_INICIALES,
   agregarProductoTerminado: () => {},
   descontarProductoTerminado: () => {},
+  eliminarProductoTerminado: async () => {},
   creditos: [],
   registrarCredito: () => {},
   marcarPagoCredito: () => {},
@@ -83,11 +85,11 @@ export const InventarioContext = createContext<InventarioContextType>({
 });
 
 export function InventarioProvider({ children }: { children: ReactNode }) {
-  const [insumos, setInsumos] = useState<InsumoBD[]>(MATERIA_PRIMA_INICIAL);
-  const [productosTerminados, setProductosTerminados] = useState<ProductoTerminado[]>(PRODUCTOS_TERMINADOS_INICIALES);
+  const [insumos, setInsumos] = useState<InsumoBD[]>([]);
+  const [productosTerminados, setProductosTerminados] = useState<ProductoTerminado[]>([]);
   const [creditos, setCreditos] = useState<Credito[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
@@ -109,26 +111,15 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
         }
 
         if (sheetProductos && sheetProductos.length > 0) {
-          setProductosTerminados(prev => {
-            const sheetItems = sheetProductos as any[];
-            const normalize = (sp: any) => ({
-              id:           sp.slug ?? sp.id ?? '',
-              nombre:       sp.nombre ?? '',
-              descripcion:  sp.descripcion ?? '',
-              stock:        Number(sp.stock ?? sp.stock_actual ?? 0),
-              unidad:       sp.unidad ?? 'und',
-              precio_venta: Number(sp.precio ?? sp.precio_venta ?? 0),
-              stock_minimo: Number(sp.stock_minimo ?? 0),
-            });
-            const updated = prev.map(p => {
-              const fromSheet = sheetItems.find(sp => (sp.slug ?? sp.id) === p.id);
-              return fromSheet ? { ...p, stock: Number(fromSheet.stock ?? fromSheet.stock_actual ?? p.stock) } : p;
-            });
-            const nuevos = sheetItems
-              .filter(si => !prev.some(p => p.id === (si.slug ?? si.id)))
-              .map(normalize);
-            return [...updated, ...nuevos];
-          });
+          setProductosTerminados((sheetProductos as any[]).map(sp => ({
+            id:           sp.slug ?? sp.id ?? '',
+            nombre:       sp.nombre ?? '',
+            descripcion:  sp.descripcion ?? '',
+            stock:        Number(sp.stock ?? sp.stock_actual ?? 0),
+            unidad:       sp.unidad ?? 'und',
+            precio_venta: Number(sp.precio ?? sp.precio_venta ?? 0),
+            stock_minimo: Number(sp.stock_minimo ?? 0),
+          })));
         }
 
         // Cargar Cartera Unificada
@@ -307,6 +298,17 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const eliminarProductoTerminado = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase.from('productos').delete().or(`slug.eq.${id},id.eq.${id}`);
+      if (error) throw error;
+      setProductosTerminados(prev => prev.filter(p => p.id !== id));
+    } catch (error) {
+      console.error('Error al eliminar producto terminado:', error);
+      throw error;
+    }
+  }, []);
+
   const registrarCredito = useCallback((nuevo: Credito) => {
     setCreditos(prev => [nuevo, ...prev]);
     googleSheetsService.appendRow('Cartera', nuevo).catch(err => console.error("Error sync Cartera:", err));
@@ -344,7 +346,7 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
       agregarInsumo,
       eliminarInsumo,
       descontarInsumoExtra,
-      productosTerminados, agregarProductoTerminado, descontarProductoTerminado,
+      productosTerminados, agregarProductoTerminado, descontarProductoTerminado, eliminarProductoTerminado,
       creditos, registrarCredito, marcarPagoCredito,
       pedidos, registrarPedido, actualizarPedido,
       loading,
