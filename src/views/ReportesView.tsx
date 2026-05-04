@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect, useMemo, useRef } from "react";
 import {
   BarChart3, DollarSign, Download, Calendar, FileText,
-  TrendingUp, Users, Package, ChevronDown, Printer
+  TrendingUp, Users, Package, ChevronDown, Printer, Factory, Truck
 } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
 import { useClientes } from "../context/ClientesContext";
@@ -53,6 +53,7 @@ export default function ReportesView() {
   const [anioSeleccionado, setAnioSeleccionado] = useState(hoy.getFullYear());
   const [liquidaciones, setLiquidaciones] = useState<any[]>([]);
   const [produccion, setProduccion] = useState<any[]>([]);
+  const [pedidos, setPedidos] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -63,12 +64,14 @@ export default function ReportesView() {
   useEffect(() => {
     async function load() {
       try {
-        const [liq, prod] = await Promise.all([
+        const [liq, prod, ped] = await Promise.all([
           googleSheetsService.getSheetData<any>("Liquidacion"),
           googleSheetsService.getSheetData<any>("Produccion"),
+          googleSheetsService.getSheetData<any>("Pedidos"),
         ]);
         setLiquidaciones(liq ?? []);
         setProduccion(prod ?? []);
+        setPedidos(ped ?? []);
       } catch (e) { console.error(e); }
       finally { setIsLoading(false); }
     }
@@ -89,6 +92,13 @@ export default function ReportesView() {
       if (!d) return false;
       return d.getMonth() === mesSeleccionado && d.getFullYear() === anioSeleccionado;
     }), [produccion, mesSeleccionado, anioSeleccionado]);
+
+  const pedPeriodo = useMemo(() =>
+    pedidos.filter(p => {
+      const d = parseDate(p.fecha);
+      if (!d) return false;
+      return d.getMonth() === mesSeleccionado && d.getFullYear() === anioSeleccionado;
+    }), [pedidos, mesSeleccionado, anioSeleccionado]);
 
   // ── KPIs ──────────────────────────────────────────────────────────────
   const kpi = useMemo(() => {
@@ -227,6 +237,8 @@ export default function ReportesView() {
                   { label: "Contado $",         value: `$${kpi.totalContado.toLocaleString("es-CO")}`, icon: DollarSign, color: "emerald" },
                   { label: "Crédito $",         value: `$${kpi.totalCredito.toLocaleString("es-CO")}`, icon: BarChart3,   color: "amber" },
                   { label: "Cartera Pend.",     value: `$${kpi.creditosPend.toLocaleString("es-CO")}`, icon: TrendingUp,  color: "rose" },
+                  { label: "Producción",        value: `${kpi.unidadProd} und`,                     icon: Factory,      color: "brand" },
+                  { label: "Pedidos",           value: pedPeriodo.length,                           icon: Truck,        color: "amber" },
                   { label: "Clientes Activos",  value: clientes.length,                            icon: Users,        color: "brand" },
                 ].map(({ label, value, icon: Icon, color }) => (
                   <div key={label} className="bg-white rounded-[28px] border border-gray-100 p-5 shadow-sm">
@@ -405,6 +417,116 @@ export default function ReportesView() {
                   </div>
                 </div>
               )}
+
+              {/* ── Historial de Producción ────────────────────────────── */}
+              <div className="bg-white rounded-[35px] border border-gray-100 shadow-sm overflow-hidden mb-8">
+                <div className="px-8 py-5 border-b border-gray-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Factory size={14} className="text-amber-500" />
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                      Historial de Producción · {titulo}
+                    </h3>
+                  </div>
+                  <span className="text-[9px] font-black bg-amber-50 text-amber-600 px-3 py-1 rounded-full uppercase tracking-widest">
+                    {prodPeriodo.length} lotes
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-50 text-[9px] font-black text-gray-400 uppercase tracking-[2px]">
+                      <tr>
+                        {["Lote","Fecha","Producto","Operario","Tandas","Unidades","Estado","Nota"].map(h => (
+                          <th key={h} className="px-6 py-4">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-sm">
+                      {prodPeriodo.length === 0 ? (
+                        <tr><td colSpan={8} className="px-8 py-12 text-center text-gray-300 font-bold uppercase italic">
+                          Sin producción en {titulo}
+                        </td></tr>
+                      ) : prodPeriodo.map((p, i) => (
+                        <tr key={i} className="hover:bg-amber-50/30 transition-colors">
+                          <td className="px-6 py-3 font-mono text-[10px] text-amber-600 font-black">{p.id_lote}</td>
+                          <td className="px-6 py-3 text-[10px] text-gray-400 font-bold">{p.fecha}</td>
+                          <td className="px-6 py-3 font-black uppercase italic text-xs">{p.producto}</td>
+                          <td className="px-6 py-3 text-xs font-bold text-gray-600">{p.operario}</td>
+                          <td className="px-6 py-3 text-center font-black">{p.tandas}</td>
+                          <td className="px-6 py-3 text-center">
+                            <span className="font-black text-lg text-amber-600">{p.unidades_reales || p.unidades_producidas || '—'}</span>
+                            <span className="text-[9px] text-gray-400 ml-1">und</span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                              p.estado === 'Terminado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                            }`}>{p.estado}</span>
+                          </td>
+                          <td className="px-6 py-3 text-[10px] text-gray-400 italic max-w-[150px] truncate" title={p.nota || ''}>{p.nota || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {prodPeriodo.length > 0 && (
+                      <tfoot className="bg-amber-50 border-t-2 border-amber-100">
+                        <tr>
+                          <td colSpan={5} className="px-6 py-4 font-black text-[10px] uppercase tracking-widest text-amber-600">TOTAL PRODUCIDO</td>
+                          <td className="px-6 py-4 font-black text-amber-600 text-center">
+                            {prodPeriodo.reduce((a, p) => a + (Number(p.unidades_reales) || Number(p.unidades_producidas) || 0), 0)} und
+                          </td>
+                          <td colSpan={2} />
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+
+              {/* ── Resumen de Pedidos ─────────────────────────────────── */}
+              <div className="bg-white rounded-[35px] border border-gray-100 shadow-sm overflow-hidden mb-8">
+                <div className="px-8 py-5 border-b border-gray-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Truck size={14} className="text-blue-500" />
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                      Pedidos · {titulo}
+                    </h3>
+                  </div>
+                  <span className="text-[9px] font-black bg-blue-50 text-blue-600 px-3 py-1 rounded-full uppercase tracking-widest">
+                    {pedPeriodo.length} pedidos
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-50 text-[9px] font-black text-gray-400 uppercase tracking-[2px]">
+                      <tr>
+                        {["Fecha","Vendedor","Cliente","Producto","Cantidad","Estado"].map(h => (
+                          <th key={h} className="px-6 py-4">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-sm">
+                      {pedPeriodo.length === 0 ? (
+                        <tr><td colSpan={6} className="px-8 py-12 text-center text-gray-300 font-bold uppercase italic">
+                          Sin pedidos en {titulo}
+                        </td></tr>
+                      ) : pedPeriodo.map((p, i) => (
+                        <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                          <td className="px-6 py-3 text-[10px] text-gray-400 font-bold">{p.fecha}</td>
+                          <td className="px-6 py-3 font-black uppercase italic text-xs">{p.vendedor}</td>
+                          <td className="px-6 py-3 text-xs font-bold text-gray-600 uppercase">{p.cliente}</td>
+                          <td className="px-6 py-3 text-xs font-bold">{p.producto}</td>
+                          <td className="px-6 py-3 font-black text-center">{p.cantidad} <span className="text-[9px] text-gray-400">und</span></td>
+                          <td className="px-6 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                              p.estado === 'Entregado' ? 'bg-emerald-100 text-emerald-700' :
+                              p.estado === 'En Camino' ? 'bg-blue-100 text-blue-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>{p.estado}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </>
           )}
         </div>
