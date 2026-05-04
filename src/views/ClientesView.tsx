@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   Users, Search, UserPlus, Phone, MapPin,
-  Loader2, X, Check, CreditCard, ChevronDown, ChevronUp
+  Loader2, X, Check, CreditCard, ChevronDown, ChevronUp, Trash2
 } from "lucide-react";
 import { useClientes } from "../context/ClientesContext";
 import type { Cliente } from "../context/ClientesContext";
@@ -22,7 +22,7 @@ const VENDEDOR_COLORS = [
 export default function ClientesView() {
   const { user } = useAuth();
   const { rutas } = useCatalogos();
-  const { clientes, agregarCliente, loading } = useClientes();
+  const { clientes, agregarCliente, eliminarCliente, loading } = useClientes();
   const { creditos } = useContext(InventarioContext);
 
   const [searchTerm, setSearchTerm]   = useState("");
@@ -121,6 +121,15 @@ export default function ClientesView() {
             <Check size={12} className="text-emerald-500" />
             <span className="text-[9px] font-black text-emerald-600 uppercase">Al día</span>
           </div>
+        )}
+
+        {isAdmin && cliente.id && (
+          <button
+            onClick={() => { if (confirm(`¿Eliminar al cliente "${cliente.nombre}"? Esta acción no se puede deshacer.`)) eliminarCliente(cliente.id!); }}
+            className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition-colors text-[9px] font-black uppercase tracking-widest"
+          >
+            <Trash2 size={12} /> Eliminar Cliente
+          </button>
         )}
       </div>
     );

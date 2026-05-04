@@ -15,6 +15,7 @@ interface ClientesContextType {
   clientes: Cliente[];
   agregarCliente: (nuevo: Cliente) => Promise<boolean>;
   actualizarCliente: (id: string, data: Partial<Cliente>) => Promise<boolean>;
+  eliminarCliente: (id: string) => Promise<boolean>;
   loading: boolean;
 }
 
@@ -84,8 +85,15 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
     return !error;
   }, []);
 
+  const eliminarCliente = useCallback(async (id: string): Promise<boolean> => {
+    setClientes(prev => prev.filter(c => c.id !== id));
+    const { error } = await supabase.from('clientes').delete().eq('id', id);
+    if (error) console.error('Error eliminando cliente:', error);
+    return !error;
+  }, []);
+
   return (
-    <ClientesContext.Provider value={{ clientes, agregarCliente, actualizarCliente, loading }}>
+    <ClientesContext.Provider value={{ clientes, agregarCliente, actualizarCliente, eliminarCliente, loading }}>
       {children}
     </ClientesContext.Provider>
   );

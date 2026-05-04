@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   Book, Package, Users, Plus, Save, Trash2, ChevronRight, Database, Search, Truck, X, ShieldCheck
 } from "lucide-react";
@@ -70,7 +70,7 @@ export default function MaestrosView() {
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm("¿Eliminar usuario?")) return;
+    if (!confirm("Â¿Eliminar usuario?")) return;
     try {
       await supabase.from('profiles').delete().eq('id', id);
       fetchProfiles();
@@ -127,7 +127,7 @@ export default function MaestrosView() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2 uppercase tracking-tighter italic">
             <Database className="h-6 w-6 text-brand-500" />
-            Catálogos Maestros
+            CatÃ¡logos Maestros
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-[10px]">Base de datos central del negocio</p>
         </div>
@@ -223,7 +223,7 @@ export default function MaestrosView() {
                         </div>
                         <div className="space-y-1">
                           <h4 className="font-black text-gray-900 dark:text-white uppercase italic tracking-tighter text-md leading-none">{recipe.nombre}</h4>
-                          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{recipe.ingredientes.length} INGREDIENTES · ${recipe.precio?.toLocaleString()}</p>
+                          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{recipe.ingredientes.length} INGREDIENTES Â· ${recipe.precio?.toLocaleString()}</p>
                         </div>
                       </div>
                       <ChevronRight className={`text-gray-400 transition-transform ${expandedRecipe === recipe.id ? 'rotate-90' : ''}`} />
@@ -378,4 +378,5 @@ export default function MaestrosView() {
     </div>
   );
 }
+
 
