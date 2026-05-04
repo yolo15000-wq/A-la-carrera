@@ -26,6 +26,7 @@ export interface Credito {
   telefono: string;
   direccion: string;
   fecha_registro: string;
+  productos?: string;
 }
 
 export interface Pedido {
@@ -122,10 +123,9 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
           })));
         }
 
-        // Cargar Cartera Unificada
+        // Cargar Cartera — fuente única de verdad
         let creditosUnificados: Credito[] = [];
 
-        // 1. De la hoja Cartera principal
         if (Array.isArray(sheetCartera)) {
           creditosUnificados = sheetCartera.map(c => ({
             ...c,
@@ -134,31 +134,6 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
             estado: c.estado || 'Pendiente'
           }));
         }
-
-        // 2. Extraer créditos de la hoja de Liquidación
-        if (Array.isArray(sheetLiq)) {
-          const creditosExtraidos: Credito[] = sheetLiq
-            .filter(l => l.tipo_pago === 'Crédito')
-            .map(l => ({
-              id_credito: `LIQ-${l.id || l.salida_id}`,
-              cliente: l.cliente || 'Desconocido',
-              vendedor: l.vendedor,
-              monto_deuda: Number(l.cantidad_venta) || 0, 
-              fecha_cobro: l.fecha_cobro || '',
-              estado: 'Pendiente',
-              telefono: l.telefono || '',
-              direccion: l.direccion || '',
-              fecha_registro: l.fecha
-            }));
-          
-          // Unir evitando duplicados
-          creditosExtraidos.forEach(nuevo => {
-            if (!creditosUnificados.some(existente => existente.id_credito === nuevo.id_credito)) {
-              creditosUnificados.push(nuevo);
-            }
-          });
-        }
-        
 
         const sheetPedidos = await googleSheetsService.getSheetData<any>('Pedidos');
         if (sheetPedidos) {

@@ -1,4 +1,4 @@
-﻿import { useState, useContext } from "react";
+import { useState, useContext } from "react";
 import { 
   Users, 
   Search, 
@@ -135,6 +135,7 @@ export default function CarteraView() {
             <thead>
               <tr className="bg-gray-50/50 dark:bg-gray-800/50">
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Productos</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Monto</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Vendedor</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">F. Cobro</th>
@@ -162,6 +163,9 @@ export default function CarteraView() {
                     <p className="text-sm font-black text-gray-900 dark:text-white">${Number(credito.monto_deuda).toLocaleString('es-CO')}</p>
                   </td>
                   <td className="px-6 py-4">
+                    <p className="text-xs text-gray-600 dark:text-gray-300 max-w-[180px]">{credito.productos || <span className="text-gray-300 italic">Sin detalle</span>}</p>
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
                         <User className="h-3 w-3 text-gray-400" />
                         {credito.vendedor}
@@ -183,7 +187,7 @@ export default function CarteraView() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     {credito.estado !== 'Pagado' && (
-                        <button 
+                   <button 
                           onClick={() => marcarPagoCredito(credito.id_credito!)}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ml-auto transition-transform active:scale-95">
                             <CheckCircle className="h-3 w-3" /> Marcar Pago
