@@ -34,8 +34,8 @@ interface CreditoItem {
 
 export default function VentasView() {
   const { user }  = useAuth();
-  const { products, rutas }  = useCatalogos();
-  const { descontarProductoTerminado, agregarProductoTerminado, registrarCredito } = useContext(InventarioContext);
+  const { rutas }  = useCatalogos();
+  const { descontarProductoTerminado, agregarProductoTerminado, registrarCredito, productosTerminados } = useContext(InventarioContext);
   const { clientes, agregarCliente } = useClientes();
 
   const [activeTab, setActiveTab]   = useState<'salidas' | 'historial'>('salidas');
@@ -391,8 +391,13 @@ export default function VentasView() {
                 <div className="grid grid-cols-2 gap-4">
                   <select value={tempItem.producto} onChange={e => setTempItem(p => ({...p, producto: e.target.value}))}
                     className="p-4 bg-white rounded-2xl font-bold text-xs uppercase shadow-sm">
-                    <option value="">-- Producto --</option>
-                    {products.map(p => <option key={p.id} value={p.nombre}>{p.nombre} ({p.stock} disponibles)</option>)}
+                     <option value="">-- Producto --</option>
+                     {productosTerminados
+                       .filter(p => p.stock > 0)
+                       .map(p => <option key={p.id} value={p.nombre}>{p.nombre} ({p.stock} disponibles)</option>)}
+                     {productosTerminados.filter(p => p.stock === 0).map(p =>
+                       <option key={p.id} value={p.nombre} disabled>{p.nombre} (agotado)</option>
+                     )}
                   </select>
                   <input type="number" placeholder="Cant" value={tempItem.cantidad || ''} onChange={e => setTempItem(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
                     className="p-4 bg-white rounded-2xl font-black text-2xl text-center text-brand-500 shadow-sm" />
