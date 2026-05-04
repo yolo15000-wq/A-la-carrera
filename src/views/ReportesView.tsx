@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect, useMemo, useRef } from "react";
 import {
   BarChart3, DollarSign, Download, Calendar, FileText,
-  TrendingUp, Users, Package, ChevronDown, Printer, Factory, Truck
+  TrendingUp, TrendingDown, Users, Package, ChevronDown, Printer, Factory, Truck
 } from "lucide-react";
 import { InventarioContext } from "../context/InventarioContext";
 import { useClientes } from "../context/ClientesContext";
