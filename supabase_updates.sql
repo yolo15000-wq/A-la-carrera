@@ -39,3 +39,6 @@ ALTER TABLE clientes ADD COLUMN IF NOT EXISTS vendedor TEXT;
 -- Índice para reportes por fecha
 CREATE INDEX IF NOT EXISTS idx_liquidaciones_fecha ON liquidaciones(fecha);
 CREATE INDEX IF NOT EXISTS idx_produccion_fecha ON produccion(fecha);
+
+-- ── AGREGAR NOTA A PRODUCCION ──────────────────────────────
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS nota TEXT;

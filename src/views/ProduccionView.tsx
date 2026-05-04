@@ -19,7 +19,7 @@ interface LoteBD {
 
 export default function ProduccionView() {
   const { user } = useAuth();
-  const { recipes } = useCatalogos();
+  const { recipes, products } = useCatalogos();
   const { descontarInsumos, agregarProductoTerminado, descontarInsumoExtra, insumos } = useContext(InventarioContext);
 
   const [lotes, setLotes] = useState<LoteBD[]>([]);
@@ -37,6 +37,7 @@ export default function ProduccionView() {
   const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0 });
   const [currentBolsas, setCurrentBolsas] = useState<string[]>([]);
   const [tempBolsa, setTempBolsa] = useState('');
+  const [notaLote, setNotaLote] = useState('');
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
   const bolsasDisponibles = useMemo(() => insumos.filter(i => i.insumo.toLowerCase().includes('bolsa')), [insumos]);
@@ -104,6 +105,7 @@ export default function ProduccionView() {
     setCurrentProd({ producto: '', cantidad: 0 });
     setCurrentBolsas([]);
     setTempBolsa('');
+    setNotaLote('');
   };
 
   const finalizarBatch = async () => {
@@ -117,6 +119,7 @@ export default function ProduccionView() {
       hora_decimal: 0,
       horas_formateadas: `${fin.getHours()}h ${fin.getMinutes()}m`,
       unidades_reales: totalUnidades,
+      nota: notaLote || '',
     };
 
     await googleSheetsService.updateRow('Produccion', 'id_lote', id, updates);
@@ -263,7 +266,7 @@ export default function ProduccionView() {
               <table className="w-full text-left">
                 <thead className="bg-gray-50 dark:bg-gray-800 text-[9px] font-black text-gray-400 uppercase tracking-[2px]">
                   <tr>
-                    {["Lote","Fecha","Producto","Operario","Tandas","Unidades","Duración","Estado"].map(h => (
+                    {["Lote","Fecha","Producto","Operario","Tandas","Unidades","Duración","Nota","Estado"].map(h => (
                       <th key={h} className="px-5 py-4">{h}</th>
                     ))}
                   </tr>
@@ -281,6 +284,13 @@ export default function ProduccionView() {
                         <span className="text-[9px] text-gray-400 ml-1">und</span>
                       </td>
                       <td className="px-5 py-3 text-[10px] text-gray-400 font-bold">{l.horas_formateadas}</td>
+                      <td className="px-5 py-3 text-[10px] text-gray-500 max-w-[140px] truncate" title={(l as any).nota || ''}>
+                        {(l as any).nota ? (
+                          <span className="italic text-gray-500">{(l as any).nota}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3">
                         <span className="px-2 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-700">
                           <CheckCircle size={8} className="inline mr-1" />Terminado
@@ -291,7 +301,7 @@ export default function ProduccionView() {
                 </tbody>
                 <tfoot className="bg-brand-50 dark:bg-brand-900/10 border-t-2 border-brand-100">
                   <tr>
-                    <td colSpan={5} className="px-5 py-3 font-black text-[10px] uppercase tracking-widest text-brand-500">Total Producido</td>
+                    <td colSpan={6} className="px-5 py-3 font-black text-[10px] uppercase tracking-widest text-brand-500">Total Producido</td>
                     <td className="px-5 py-3 font-black text-brand-500">
                       {lotesTerminados.reduce((a, l) => a + (l.unidades_reales || 0), 0)} und
                     </td>
@@ -380,7 +390,7 @@ export default function ProduccionView() {
                     <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({...p, producto: e.target.value}))}
                       className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-xs uppercase appearance-none border border-gray-200 dark:border-gray-700 focus:border-brand-400">
                       <option value="">-- Seleccionar --</option>
-                      {recipes.map(r => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+                      {products.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
                     </select>
                   </div>
 
@@ -426,6 +436,18 @@ export default function ProduccionView() {
                   </button>
                 </div>
               </div>
+
+                {/* Nota del operario */}
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">📝 Nota del Operario (Opcional)</label>
+                  <textarea
+                    value={notaLote}
+                    onChange={e => setNotaLote(e.target.value)}
+                    rows={3}
+                    placeholder="Ej: Se ajustó sal en la segunda tanda, temperatura alta al inicio..."
+                    className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-medium text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 focus:border-brand-400 resize-none"
+                  />
+                </div>
 
               <div className="flex gap-3">
                 <button onClick={() => setBatchFinalizando(null)} className="flex-1 text-gray-400 font-bold uppercase text-[10px] py-3">Cancelar</button>
