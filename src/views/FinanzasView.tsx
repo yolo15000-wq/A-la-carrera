@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useContext } from "react";
 import {
   TrendingUp, TrendingDown, DollarSign, PlusCircle, X,
   Loader2, Trash2, BarChart3, AlertTriangle, CheckCircle2,
-  ChevronDown
+  ChevronDown, Building, Wallet, Activity
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { InventarioContext } from "../context/InventarioContext";
@@ -17,13 +17,28 @@ interface Gasto {
   monto: number;
   metodo_pago: string;
   creado_por: string;
-  created_at?: string;
+}
+
+interface GastoFijo {
+  id?: number;
+  nombre: string;
+  monto: number;
+  activo: boolean;
+}
+
+interface MovimientoCaja {
+  id?: number;
+  fecha: string;
+  concepto: string;
+  tipo: "Ingreso" | "Egreso";
+  monto: number;
+  saldo_acum?: number;
+  creado_por: string;
 }
 
 const CATEGORIAS = [
   "Materia Prima",
-  "Nómina",
-  "Operativos (Arriendo, luz, agua)",
+  "Nómina Extra",
   "Mantenimiento",
   "Transporte",
   "Otros",
@@ -36,16 +51,6 @@ const MESES = [
   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
 ];
 
-// Colores por categoría
-const COLORES_CAT: Record<string, string> = {
-  "Materia Prima": "bg-rose-500",
-  "Nómina": "bg-purple-500",
-  "Operativos (Arriendo, luz, agua)": "bg-blue-500",
-  "Mantenimiento": "bg-amber-500",
-  "Transporte": "bg-cyan-500",
-  "Otros": "bg-gray-400",
-};
-
 // ── Componente principal ───────────────────────────────────────────────────────
 export default function FinanzasView() {
   const { user } = useAuth();
@@ -54,15 +59,21 @@ export default function FinanzasView() {
   const now = new Date();
   const [mesSeleccionado, setMesSeleccionado] = useState(now.getMonth());
   const [anioSeleccionado, setAnioSeleccionado] = useState(now.getFullYear());
+  const [activeTab, setActiveTab] = useState<"pnl" | "caja" | "fijos">("pnl");
 
   const [gastos, setGastos] = useState<Gasto[]>([]);
+  const [gastosFijos, setGastosFijos] = useState<GastoFijo[]>([]);
+  const [movimientos, setMovimientos] = useState<MovimientoCaja[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState<"gasto" | "movimiento" | "fijo" | null>(null);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
+  
   const [ingresosBrutos, setIngresosBrutos] = useState(0);
 
-  const [form, setForm] = useState<Gasto>({
+  // Forms
+  const [formGasto, setFormGasto] = useState<Gasto>({
     fecha: new Date().toISOString().slice(0, 10),
     categoria: CATEGORIAS[0],
     descripcion: "",
@@ -70,37 +81,68 @@ export default function FinanzasView() {
     metodo_pago: "Efectivo",
     creado_por: user?.username ?? "Admin",
   });
+  
+  const [formMovimiento, setFormMovimiento] = useState<MovimientoCaja>({
+    fecha: new Date().toISOString().slice(0, 10),
+    concepto: "",
+    tipo: "Ingreso",
+    monto: 0,
+    creado_por: user?.username ?? "Admin",
+  });
 
-  // ── Carga de gastos desde Supabase ──────────────────────────────────────────
+  const [formFijo, setFormFijo] = useState<GastoFijo>({
+    nombre: "",
+    monto: 0,
+    activo: true,
+  });
+
+  // ── Carga de datos ────────────────────────────────────────────────────────
   useEffect(() => {
-    loadGastos();
+    loadData();
   }, []);
 
-  // ── Carga de ingresos desde tabla liquidaciones ─────────────────────────────
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [resGastos, resFijos, resCaja, resLiq] = await Promise.all([
+        supabase.from("gastos").select("*").order("created_at", { ascending: false }),
+        supabase.from("gastos_fijos").select("*").order("id", { ascending: true }),
+        supabase.from("caja_banco").select("*").order("fecha", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("liquidaciones").select("total_pesos, fecha")
+      ]);
+
+      if (resGastos.data) setGastos(resGastos.data);
+      if (resFijos.data) setGastosFijos(resFijos.data);
+      if (resCaja.data) setMovimientos(resCaja.data);
+      
+      if (resLiq.data) {
+        // En una app real filtraríamos por mes, aquí lo simplificamos sumando lo del mes seleccionado
+        // Lo calcularemos dinámicamente en useMemo
+      }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }
+  
+  // Carga de ingresos brutos mes actual (Liquidaciones)
   useEffect(() => {
-    async function loadIngresos() {
-      const { data } = await supabase
-        .from("liquidaciones")
-        .select("total_pesos, fecha");
+    async function fetchIngresos() {
+      const { data } = await supabase.from("liquidaciones").select("total_pesos, fecha");
       if (data) {
-        const total = data.reduce((acc, row) => acc + (Number(row.total_pesos) || 0), 0);
+        // Filtrar por mes/año seleccionado
+        const total = data.filter(row => {
+          if (!row.fecha) return false;
+          const [d, m, y] = row.fecha.split("/").map(Number);
+          // Si el formato es DD/MM/YYYY
+          if (m && y) return m - 1 === mesSeleccionado && y === anioSeleccionado;
+          return false;
+        }).reduce((acc, row) => acc + (Number(row.total_pesos) || 0), 0);
         setIngresosBrutos(total);
       }
     }
-    loadIngresos();
-  }, []);
+    fetchIngresos();
+  }, [mesSeleccionado, anioSeleccionado]);
 
-  async function loadGastos() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("gastos")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) setGastos(data);
-    setLoading(false);
-  }
-
-  // ── Filtrado por mes y año ──────────────────────────────────────────────────
+  // ── Cálculos P&L ──────────────────────────────────────────────────────────
   const gastosFiltrados = useMemo(() => {
     return gastos.filter(g => {
       const d = new Date(g.fecha);
@@ -108,329 +150,409 @@ export default function FinanzasView() {
     });
   }, [gastos, mesSeleccionado, anioSeleccionado]);
 
-  const ingresosDelMes = useMemo(() => {
-    // Calcular ingresos del mes desde cartera (cobros) + liquidaciones futuras
-    // Por ahora usamos el total general filtrado por fecha
-    return ingresosBrutos; // Se puede mejorar con filtro por mes
-  }, [ingresosBrutos]);
+  const totalGastosVariables = useMemo(() => gastosFiltrados.reduce((acc, g) => acc + (Number(g.monto) || 0), 0), [gastosFiltrados]);
+  
+  const totalGastosFijosMes = useMemo(() => gastosFijos.filter(g => g.activo).reduce((acc, g) => acc + (Number(g.monto) || 0), 0), [gastosFijos]);
 
-  const totalGastosMes = useMemo(
-    () => gastosFiltrados.reduce((acc, g) => acc + (Number(g.monto) || 0), 0),
-    [gastosFiltrados]
-  );
+  const ingresosTotales = ingresosBrutos; // + Cobros de cartera si lo tuviéramos separado
+  
+  // COGS aproximado (si tuviéramos costo real por producto lo sumaríamos aquí, por ahora lo asumimos dentro de materia prima/gastos variables)
+  const utilidadNeta = ingresosTotales - totalGastosVariables - totalGastosFijosMes;
 
-  const carteraPendiente = useMemo(
-    () => creditos.filter(c => c.estado !== "Pagado").reduce((acc, c) => acc + c.monto_deuda, 0),
-    [creditos]
-  );
+  // Saldo Bancario
+  const saldoCaja = useMemo(() => {
+    return movimientos.reduce((acc, m) => m.tipo === "Ingreso" ? acc + Number(m.monto) : acc - Number(m.monto), 0);
+  }, [movimientos]);
 
-  const utilidadNeta = ingresosDelMes - totalGastosMes;
+  // ── Guardar Datos ─────────────────────────────────────────────────────────
+  const showMsg = (msg: string) => {
+    setMensajeExito(msg);
+    setTimeout(() => setMensajeExito(null), 3000);
+  };
 
-  // ── Gastos por categoría (para gráfico) ────────────────────────────────────
-  const gastosPorCategoria = useMemo(() => {
-    const mapa: Record<string, number> = {};
-    gastosFiltrados.forEach(g => {
-      mapa[g.categoria] = (mapa[g.categoria] || 0) + Number(g.monto);
-    });
-    return Object.entries(mapa)
-      .sort((a, b) => b[1] - a[1])
-      .map(([cat, monto]) => ({ cat, monto, pct: totalGastosMes ? Math.round((monto / totalGastosMes) * 100) : 0 }));
-  }, [gastosFiltrados, totalGastosMes]);
-
-  // ── Guardar gasto ──────────────────────────────────────────────────────────
   const guardarGasto = async () => {
-    if (!form.descripcion.trim() || form.monto <= 0) return;
+    if (!formGasto.descripcion.trim() || formGasto.monto <= 0) return;
     setSaving(true);
-    const { data, error } = await supabase.from("gastos").insert([{ ...form }]).select().single();
+    const { data, error } = await supabase.from("gastos").insert([{ ...formGasto }]).select().single();
     if (!error && data) {
       setGastos(prev => [data, ...prev]);
-      setMensajeExito("✅ Gasto registrado correctamente");
-      setTimeout(() => setMensajeExito(null), 3000);
-      setShowModal(false);
-      setForm({
-        fecha: new Date().toISOString().slice(0, 10),
-        categoria: CATEGORIAS[0],
-        descripcion: "",
-        monto: 0,
-        metodo_pago: "Efectivo",
-        creado_por: user?.username ?? "Admin",
-      });
+      showMsg("✅ Gasto variable registrado");
+      setShowModal(null);
+      setFormGasto({ ...formGasto, descripcion: "", monto: 0 });
     }
     setSaving(false);
   };
 
-  // ── Eliminar gasto ─────────────────────────────────────────────────────────
-  const eliminarGasto = async (id: number) => {
-    if (!confirm("¿Eliminar este gasto?")) return;
-    await supabase.from("gastos").delete().eq("id", id);
-    setGastos(prev => prev.filter(g => g.id !== id));
+  const guardarMovimiento = async () => {
+    if (!formMovimiento.concepto.trim() || formMovimiento.monto <= 0) return;
+    setSaving(true);
+    const nuevoSaldo = formMovimiento.tipo === "Ingreso" ? saldoCaja + formMovimiento.monto : saldoCaja - formMovimiento.monto;
+    const { data, error } = await supabase.from("caja_banco").insert([{ ...formMovimiento, saldo_acum: nuevoSaldo }]).select().single();
+    if (!error && data) {
+      setMovimientos(prev => [data, ...prev]);
+      showMsg("✅ Movimiento de caja registrado");
+      setShowModal(null);
+      setFormMovimiento({ ...formMovimiento, concepto: "", monto: 0 });
+    }
+    setSaving(false);
+  };
+
+  const guardarGastoFijo = async () => {
+    if (!formFijo.nombre.trim() || formFijo.monto <= 0) return;
+    setSaving(true);
+    const { data, error } = await supabase.from("gastos_fijos").insert([{ ...formFijo }]).select().single();
+    if (!error && data) {
+      setGastosFijos(prev => [...prev, data]);
+      showMsg("✅ Gasto fijo registrado");
+      setShowModal(null);
+      setFormFijo({ nombre: "", monto: 0, activo: true });
+    }
+    setSaving(false);
+  };
+
+  const toggleGastoFijo = async (gasto: GastoFijo) => {
+    const { error } = await supabase.from("gastos_fijos").update({ activo: !gasto.activo }).eq("id", gasto.id);
+    if (!error) {
+      setGastosFijos(prev => prev.map(g => g.id === gasto.id ? { ...g, activo: !g.activo } : g));
+    }
+  };
+
+  const eliminarRegistro = async (tabla: string, id: number, setter: any) => {
+    if (!confirm("¿Eliminar este registro permanentemente?")) return;
+    await supabase.from(tabla).delete().eq("id", id);
+    setter((prev: any[]) => prev.filter(item => item.id !== id));
   };
 
   const fmtCOP = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
 
   return (
     <div className="space-y-6 pb-20">
-
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-900 p-6 md:p-8 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-white dark:bg-gray-900 p-6 md:p-8 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4" style={{ borderTop: "3px solid #E5007E" }}>
         <div>
           <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">
-            Gestión Financiera
+            Finanzas & Estado de Resultados
           </h2>
           <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">
-            Control de Ingresos, Gastos y Utilidad
+            Control Financiero Estilo QuickBooks
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* Selector Mes / Año */}
           <div className="relative">
-            <select
-              value={mesSeleccionado}
-              onChange={e => setMesSeleccionado(Number(e.target.value))}
-              className="appearance-none pl-4 pr-8 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold outline-none cursor-pointer"
-            >
+            <select value={mesSeleccionado} onChange={e => setMesSeleccionado(Number(e.target.value))} className="appearance-none pl-4 pr-8 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold outline-none cursor-pointer">
               {MESES.map((m, i) => <option key={m} value={i}>{m}</option>)}
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           </div>
-          <select
-            value={anioSeleccionado}
-            onChange={e => setAnioSeleccionado(Number(e.target.value))}
-            className="pl-4 pr-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold outline-none"
-          >
+          <select value={anioSeleccionado} onChange={e => setAnioSeleccionado(Number(e.target.value))} className="pl-4 pr-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold outline-none">
             {[2024, 2025, 2026, 2027].map(a => <option key={a}>{a}</option>)}
           </select>
-          {user?.role === "admin" && (
-            <button
-              onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black uppercase text-xs tracking-widest text-white shadow-lg active:scale-95 transition-all"
-              style={{ background: "#E5007E" }}
-            >
-              <PlusCircle size={16} /> Nuevo Gasto
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Mensaje de éxito */}
       {mensajeExito && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-3 rounded-xl flex items-center gap-2 font-bold text-sm">
           <CheckCircle2 size={16} /> {mensajeExito}
         </div>
       )}
 
-      {/* ── KPIs ────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Ingresos */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-emerald-50 rounded-xl"><TrendingUp size={16} className="text-emerald-600" /></div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ingresos Totales</p>
-          </div>
-          <p className="text-2xl font-black text-emerald-600">{fmtCOP(ingresosDelMes)}</p>
-          <p className="text-[10px] text-gray-400 mt-1">Ventas liquidadas</p>
-        </div>
-
-        {/* Gastos */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-rose-50 rounded-xl"><TrendingDown size={16} className="text-rose-600" /></div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Gastos del Mes</p>
-          </div>
-          <p className="text-2xl font-black text-rose-600">{fmtCOP(totalGastosMes)}</p>
-          <p className="text-[10px] text-gray-400 mt-1">{gastosFiltrados.length} registros</p>
-        </div>
-
-        {/* Utilidad */}
-        <div className={`rounded-2xl border p-5 shadow-sm ${utilidadNeta >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <div className={`p-2 rounded-xl ${utilidadNeta >= 0 ? "bg-emerald-100" : "bg-rose-100"}`}>
-              <DollarSign size={16} className={utilidadNeta >= 0 ? "text-emerald-700" : "text-rose-700"} />
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Utilidad Neta</p>
-          </div>
-          <p className={`text-2xl font-black ${utilidadNeta >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-            {fmtCOP(utilidadNeta)}
-          </p>
-          <p className="text-[10px] text-gray-500 mt-1">{utilidadNeta >= 0 ? "✅ Positivo" : "⚠️ En rojo"}</p>
-        </div>
-
-        {/* Cartera pendiente */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-amber-200 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-amber-50 rounded-xl"><AlertTriangle size={16} className="text-amber-600" /></div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cartera Por Cobrar</p>
-          </div>
-          <p className="text-2xl font-black text-amber-600">{fmtCOP(carteraPendiente)}</p>
-          <p className="text-[10px] text-gray-400 mt-1">Pendiente de clientes</p>
-        </div>
+      {/* ── Tabs de Navegación ──────────────────────────────────────────────── */}
+      <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl w-fit">
+        {[
+          { id: "pnl", label: "Estado de Resultados (P&L)", icon: Activity },
+          { id: "caja", label: "Flujo y Caja Bancaria", icon: Wallet },
+          { id: "fijos", label: "Gastos Fijos", icon: Building }
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-gray-700 text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+            <tab.icon size={14} /> {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* ── Gráfico de gastos por categoría ──────────────────────────────────── */}
-      {gastosPorCategoria.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-5">
-            <BarChart3 size={18} style={{ color: "#E5007E" }} />
-            <h3 className="font-black uppercase text-sm tracking-widest text-gray-700 dark:text-gray-300">
-              Distribución de Gastos — {MESES[mesSeleccionado]} {anioSeleccionado}
-            </h3>
-          </div>
-          <div className="space-y-3">
-            {gastosPorCategoria.map(({ cat, monto, pct }) => (
-              <div key={cat}>
-                <div className="flex justify-between text-xs font-bold mb-1">
-                  <span className="text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{cat}</span>
-                  <span className="text-gray-900 dark:text-white">{fmtCOP(monto)} <span className="text-gray-400">({pct}%)</span></span>
+      {loading ? (
+        <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-brand-500" size={32} /></div>
+      ) : (
+        <>
+          {/* =========================================================================
+              PESTAÑA 1: ESTADO DE RESULTADOS (P&L)
+          ========================================================================= */}
+          {activeTab === "pnl" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Ingresos Operacionales</p>
+                  <p className="text-2xl font-black text-emerald-600">{fmtCOP(ingresosTotales)}</p>
                 </div>
-                <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className={`h-2.5 rounded-full ${COLORES_CAT[cat] ?? "bg-gray-400"} transition-all duration-700`}
-                    style={{ width: `${pct}%` }}
-                  />
+                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Gastos Variables</p>
+                  <p className="text-2xl font-black text-rose-500">{fmtCOP(totalGastosVariables)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Gastos Fijos Mensuales</p>
+                  <p className="text-2xl font-black text-orange-500">{fmtCOP(totalGastosFijosMes)}</p>
+                </div>
+                <div className={`p-5 rounded-2xl border shadow-sm ${utilidadNeta >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                  <p className={`text-[10px] font-black uppercase mb-1 ${utilidadNeta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Utilidad Neta del Mes</p>
+                  <p className={`text-3xl font-black ${utilidadNeta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtCOP(utilidadNeta)}</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                  <h3 className="font-black uppercase text-sm text-gray-700">Detalle de Gastos Variables</h3>
+                  {user?.role === "admin" && (
+                    <button onClick={() => setShowModal("gasto")} className="flex items-center gap-1 px-3 py-1.5 bg-brand-500 text-white rounded-lg text-xs font-bold shadow-md hover:bg-brand-600">
+                      <PlusCircle size={14} /> Agregar Gasto Variable
+                    </button>
+                  )}
+                </div>
+                <div className="p-0 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Categoría</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Descripción</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
+                        <th className="px-5 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {gastosFiltrados.length === 0 ? (
+                        <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">No hay gastos en este mes</td></tr>
+                      ) : gastosFiltrados.map(g => (
+                        <tr key={g.id} className="hover:bg-gray-50">
+                          <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{g.fecha}</td>
+                          <td className="px-5 py-3 text-xs font-bold text-brand-600">{g.categoria}</td>
+                          <td className="px-5 py-3 text-xs">{g.descripcion}</td>
+                          <td className="px-5 py-3 font-black text-rose-600 text-right">{fmtCOP(g.monto)}</td>
+                          <td className="px-5 py-3 text-right">
+                            {user?.role === "admin" && (
+                              <button onClick={() => eliminarRegistro("gastos", g.id!, setGastos)} className="text-gray-300 hover:text-rose-500">
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              PESTAÑA 2: CAJA Y BANCO
+          ========================================================================= */}
+          {activeTab === "caja" && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-brand-600 to-purple-600 p-8 rounded-[30px] shadow-xl text-white flex flex-col md:flex-row justify-between items-center">
+                <div>
+                  <p className="text-brand-100 font-black uppercase tracking-widest text-xs mb-1">Saldo Total en Caja / Banco</p>
+                  <h1 className="text-5xl font-black italic tracking-tighter">{fmtCOP(saldoCaja)}</h1>
+                </div>
+                {user?.role === "admin" && (
+                  <button onClick={() => setShowModal("movimiento")} className="mt-4 md:mt-0 flex items-center gap-2 bg-white text-brand-600 px-6 py-3 rounded-2xl font-black uppercase text-xs hover:bg-gray-50 shadow-lg transition-transform active:scale-95">
+                    <PlusCircle size={16} /> Nuevo Movimiento
+                  </button>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-5 border-b bg-gray-50">
+                  <h3 className="font-black uppercase text-sm text-gray-700">Historial de Movimientos</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Concepto</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Tipo</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Saldo Acum</th>
+                        <th className="px-5 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {movimientos.length === 0 ? (
+                        <tr><td colSpan={6} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">Sin movimientos registrados</td></tr>
+                      ) : movimientos.map(m => (
+                        <tr key={m.id} className="hover:bg-gray-50">
+                          <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{m.fecha}</td>
+                          <td className="px-5 py-3 font-bold text-gray-800 text-xs">{m.concepto}</td>
+                          <td className="px-5 py-3">
+                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.tipo === 'Ingreso' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {m.tipo}
+                            </span>
+                          </td>
+                          <td className={`px-5 py-3 font-black text-right ${m.tipo === 'Ingreso' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {m.tipo === 'Ingreso' ? '+' : '-'}{fmtCOP(m.monto)}
+                          </td>
+                          <td className="px-5 py-3 font-black text-gray-600 text-right">{fmtCOP(m.saldo_acum || 0)}</td>
+                          <td className="px-5 py-3 text-right">
+                            {user?.role === "admin" && (
+                              <button onClick={() => eliminarRegistro("caja_banco", m.id!, setMovimientos)} className="text-gray-300 hover:text-rose-500">
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              PESTAÑA 3: GASTOS FIJOS
+          ========================================================================= */}
+          {activeTab === "fijos" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="font-black uppercase text-gray-700">Configuración de Gastos Fijos (Mensuales)</h3>
+                {user?.role === "admin" && (
+                  <button onClick={() => setShowModal("fijo")} className="flex items-center gap-1 px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-black">
+                    <PlusCircle size={14} /> Nuevo Gasto Fijo
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {gastosFijos.map(g => (
+                  <div key={g.id} className={`p-6 rounded-[24px] border ${g.activo ? 'bg-white border-brand-200 shadow-md' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <h4 className="font-black text-gray-800 uppercase italic">{g.nombre}</h4>
+                      <button onClick={() => toggleGastoFijo(g)} className={`w-10 h-5 rounded-full relative transition-colors ${g.activo ? 'bg-brand-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${g.activo ? 'left-6' : 'left-1'}`} />
+                      </button>
+                    </div>
+                    <p className="text-3xl font-black text-gray-900">{fmtCOP(g.monto)} <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">/ Mes</span></p>
+                    <div className="mt-4 flex justify-end">
+                      <button onClick={() => eliminarRegistro("gastos_fijos", g.id!, setGastosFijos)} className="text-gray-400 hover:text-rose-500 text-[10px] font-bold uppercase">
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {gastosFijos.length === 0 && (
+                  <div className="col-span-full p-10 text-center border-2 border-dashed border-gray-200 rounded-[30px] text-gray-400 font-bold uppercase">
+                    No has configurado gastos fijos (Arriendo, Nómina Fija, etc.)
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* ── Tabla de gastos ──────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
-          <h3 className="font-black uppercase text-sm tracking-widest text-gray-700 dark:text-gray-300">
-            Registro de Gastos — {MESES[mesSeleccionado]}
-          </h3>
-          {loading && <Loader2 size={16} className="animate-spin text-gray-400" />}
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 dark:bg-gray-800">
-              <tr>
-                {["Fecha", "Categoría", "Descripción", "Método", "Monto", "Registrado por", ""].map(h => (
-                  <th key={h} className="px-5 py-3 text-[9px] font-black uppercase tracking-widest text-gray-400">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {gastosFiltrados.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center text-gray-300 font-black uppercase italic text-sm">
-                    Sin gastos registrados en {MESES[mesSeleccionado]}
-                  </td>
-                </tr>
-              )}
-              {gastosFiltrados.map(g => (
-                <tr key={g.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
-                  <td className="px-5 py-3 text-[10px] font-bold text-gray-400">{g.fecha}</td>
-                  <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${COLORES_CAT[g.categoria] ?? "bg-gray-400"}`}>
-                      {g.categoria.split(" ")[0]}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-xs font-bold text-gray-700 dark:text-gray-300 max-w-[200px] truncate">{g.descripcion}</td>
-                  <td className="px-5 py-3 text-[10px] font-bold text-gray-500">{g.metodo_pago}</td>
-                  <td className="px-5 py-3 font-black text-rose-600">{fmtCOP(g.monto)}</td>
-                  <td className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase">{g.creado_por}</td>
-                  <td className="px-5 py-3">
-                    {user?.role === "admin" && (
-                      <button onClick={() => eliminarGasto(g.id!)} className="text-gray-200 hover:text-rose-500 transition-colors p-1">
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer Total */}
-        {gastosFiltrados.length > 0 && (
-          <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-            <span className="text-sm font-black text-rose-600 uppercase tracking-widest">
-              Total: {fmtCOP(totalGastosMes)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* ── Modal Nuevo Gasto ─────────────────────────────────────────────────── */}
-      {showModal && (
+      {/* ── Modales ───────────────────────────────────────────────────────────── */}
+      
+      {/* Modal: Gasto Variable */}
+      {showModal === "gasto" && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="p-8 space-y-6">
-              {/* Header modal */}
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-black uppercase italic tracking-tighter">Registrar Gasto</h2>
-                <button onClick={() => setShowModal(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Fecha */}
+          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-8 space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+              <h2 className="text-xl font-black uppercase italic text-gray-800">Registrar Gasto Variable</h2>
+              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">Fecha</label>
-                <input type="date" value={form.fecha}
-                  onChange={e => setForm(p => ({ ...p, fecha: e.target.value }))}
-                  className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl outline-none font-bold border border-gray-100 dark:border-gray-700"
-                />
+                <label className="text-[9px] font-black text-gray-400 uppercase">Fecha</label>
+                <input type="date" value={formGasto.fecha} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
               </div>
-
-              {/* Categoría */}
               <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">Categoría</label>
-                <select value={form.categoria}
-                  onChange={e => setForm(p => ({ ...p, categoria: e.target.value }))}
-                  className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl outline-none font-bold border border-gray-100 dark:border-gray-700"
-                >
+                <label className="text-[9px] font-black text-gray-400 uppercase">Categoría</label>
+                <select value={formGasto.categoria} onChange={e => setFormGasto({...formGasto, categoria: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
                   {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
-
-              {/* Descripción */}
+              <div className="col-span-2">
+                <label className="text-[9px] font-black text-gray-400 uppercase">Descripción</label>
+                <input type="text" value={formGasto.descripcion} onChange={e => setFormGasto({...formGasto, descripcion: e.target.value})} placeholder="Ej: Compra bolsas" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
+              </div>
               <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">Descripción</label>
-                <input type="text" value={form.descripcion}
-                  onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
-                  placeholder="Ej: Compra de 50kg de carne de cerdo..."
-                  className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl outline-none font-bold border border-gray-100 dark:border-gray-700"
-                />
+                <label className="text-[9px] font-black text-gray-400 uppercase">Monto</label>
+                <input type="number" value={formGasto.monto || ""} onChange={e => setFormGasto({...formGasto, monto: Number(e.target.value)})} className="w-full p-3 bg-gray-50 rounded-xl font-black text-rose-600 border border-gray-100" />
               </div>
-
-              {/* Monto y Método */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">Monto ($)</label>
-                  <input type="number" value={form.monto || ""}
-                    onChange={e => setForm(p => ({ ...p, monto: Number(e.target.value) }))}
-                    placeholder="0"
-                    className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl outline-none font-black text-2xl text-rose-600 text-center border border-gray-100 dark:border-gray-700"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">Método de Pago</label>
-                  <select value={form.metodo_pago}
-                    onChange={e => setForm(p => ({ ...p, metodo_pago: e.target.value }))}
-                    className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl outline-none font-bold border border-gray-100 dark:border-gray-700"
-                  >
-                    {METODOS_PAGO.map(m => <option key={m}>{m}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label className="text-[9px] font-black text-gray-400 uppercase">Método Pago</label>
+                <select value={formGasto.metodo_pago} onChange={e => setFormGasto({...formGasto, metodo_pago: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
+                  {METODOS_PAGO.map(m => <option key={m}>{m}</option>)}
+                </select>
               </div>
-
-              {/* Botón guardar */}
-              <button onClick={guardarGasto} disabled={saving || !form.descripcion.trim() || form.monto <= 0}
-                className="w-full py-5 rounded-2xl font-black uppercase tracking-widest text-sm text-white disabled:bg-gray-200 disabled:text-gray-400 shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                style={{ background: form.descripcion.trim() && form.monto > 0 ? "#E5007E" : undefined }}
-              >
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}
-                Guardar Gasto
-              </button>
             </div>
+            <button onClick={guardarGasto} disabled={saving || !formGasto.descripcion || formGasto.monto <= 0} className="w-full py-4 bg-brand-500 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
+              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Guardar Gasto"}
+            </button>
           </div>
         </div>
       )}
+
+      {/* Modal: Movimiento de Caja */}
+      {showModal === "movimiento" && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-8 space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+              <h2 className="text-xl font-black uppercase italic text-gray-800">Movimiento de Banco / Caja</h2>
+              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[9px] font-black text-gray-400 uppercase">Fecha</label>
+                <input type="date" value={formMovimiento.fecha} onChange={e => setFormMovimiento({...formMovimiento, fecha: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-gray-400 uppercase">Tipo</label>
+                <select value={formMovimiento.tipo} onChange={e => setFormMovimiento({...formMovimiento, tipo: e.target.value as "Ingreso"|"Egreso"})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
+                  <option value="Ingreso">Entrada (+)</option>
+                  <option value="Egreso">Salida (-)</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-[9px] font-black text-gray-400 uppercase">Concepto</label>
+                <input type="text" value={formMovimiento.concepto} onChange={e => setFormMovimiento({...formMovimiento, concepto: e.target.value})} placeholder="Ej: Abono de cliente, Pago proveedor" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[9px] font-black text-gray-400 uppercase">Monto</label>
+                <input type="number" value={formMovimiento.monto || ""} onChange={e => setFormMovimiento({...formMovimiento, monto: Number(e.target.value)})} className="w-full p-4 bg-gray-50 rounded-xl font-black text-2xl text-center text-brand-600 border border-gray-100" />
+              </div>
+            </div>
+            <button onClick={guardarMovimiento} disabled={saving || !formMovimiento.concepto || formMovimiento.monto <= 0} className="w-full py-4 bg-brand-500 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
+              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Registrar Movimiento"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Gasto Fijo */}
+      {showModal === "fijo" && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-sm p-8 space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+              <h2 className="text-xl font-black uppercase italic text-gray-800">Nuevo Gasto Fijo</h2>
+              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-gray-400 uppercase">Nombre (Ej: Arriendo)</label>
+              <input type="text" value={formFijo.nombre} onChange={e => setFormFijo({...formFijo, nombre: e.target.value})} className="w-full p-3 mt-1 bg-gray-50 rounded-xl font-bold border border-gray-100" />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-gray-400 uppercase">Costo Mensual ($)</label>
+              <input type="number" value={formFijo.monto || ""} onChange={e => setFormFijo({...formFijo, monto: Number(e.target.value)})} className="w-full p-4 mt-1 bg-gray-50 rounded-xl font-black text-2xl text-center border border-gray-100" />
+            </div>
+            <button onClick={guardarGastoFijo} disabled={saving || !formFijo.nombre || formFijo.monto <= 0} className="w-full py-4 bg-gray-900 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
+              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Crear Gasto Fijo"}
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

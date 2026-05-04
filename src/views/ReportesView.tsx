@@ -6,6 +6,7 @@ import {
 import { InventarioContext } from "../context/InventarioContext";
 import { useClientes } from "../context/ClientesContext";
 import { googleSheetsService } from "../services/googleSheetsService";
+import { supabase } from "../lib/supabase";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
@@ -54,6 +55,8 @@ export default function ReportesView() {
   const [liquidaciones, setLiquidaciones] = useState<any[]>([]);
   const [produccion, setProduccion] = useState<any[]>([]);
   const [pedidos, setPedidos] = useState<any[]>([]);
+  const [gastos, setGastos] = useState<any[]>([]);
+  const [gastosFijos, setGastosFijos] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -64,14 +67,18 @@ export default function ReportesView() {
   useEffect(() => {
     async function load() {
       try {
-        const [liq, prod, ped] = await Promise.all([
+        const [liq, prod, ped, resGastos, resFijos] = await Promise.all([
           googleSheetsService.getSheetData<any>("Liquidacion"),
           googleSheetsService.getSheetData<any>("Produccion"),
           googleSheetsService.getSheetData<any>("Pedidos"),
+          supabase.from("gastos").select("*"),
+          supabase.from("gastos_fijos").select("*")
         ]);
         setLiquidaciones(liq ?? []);
         setProduccion(prod ?? []);
         setPedidos(ped ?? []);
+        if (resGastos.data) setGastos(resGastos.data);
+        if (resFijos.data) setGastosFijos(resFijos.data);
       } catch (e) { console.error(e); }
       finally { setIsLoading(false); }
     }
@@ -136,8 +143,18 @@ export default function ReportesView() {
       porProducto[l.producto] = (porProducto[l.producto] || 0) + valorLiq(l);
     });
 
-    return { totalUnidades, totalPesos, totalContado, totalCredito, creditosPend, unidadProd, porVendedor, porProducto };
-  }, [liqPeriodo, prodPeriodo, creditos]);
+    // Gastos y Utilidad Neta
+    const gastosMes = gastos.filter(g => {
+      const d = parseDate(g.fecha);
+      if (!d) return false;
+      return d.getMonth() === mesSeleccionado && d.getFullYear() === anioSeleccionado;
+    });
+    const totalGastosVariables = gastosMes.reduce((a, g) => a + (Number(g.monto) || 0), 0);
+    const totalGastosFijosMes = gastosFijos.filter(g => g.activo).reduce((a, g) => a + (Number(g.monto) || 0), 0);
+    const utilidadNeta = totalPesos - totalGastosVariables - totalGastosFijosMes;
+
+    return { totalUnidades, totalPesos, totalContado, totalCredito, creditosPend, unidadProd, porVendedor, porProducto, totalGastosVariables, totalGastosFijosMes, utilidadNeta };
+  }, [liqPeriodo, prodPeriodo, creditos, gastos, gastosFijos, mesSeleccionado, anioSeleccionado]);
 
   // ── Exportar PDF (impresión) ──────────────────────────────────────────
   const exportPDF = () => {
@@ -237,6 +254,9 @@ export default function ReportesView() {
                   { label: "Contado $",         value: `$${kpi.totalContado.toLocaleString("es-CO")}`, icon: DollarSign, color: "emerald" },
                   { label: "Crédito $",         value: `$${kpi.totalCredito.toLocaleString("es-CO")}`, icon: BarChart3,   color: "amber" },
                   { label: "Cartera Pend.",     value: `$${kpi.creditosPend.toLocaleString("es-CO")}`, icon: TrendingUp,  color: "rose" },
+                  { label: "Gastos Variables",  value: `$${kpi.totalGastosVariables.toLocaleString("es-CO")}`, icon: TrendingDown, color: "rose" },
+                  { label: "Gastos Fijos",      value: `$${kpi.totalGastosFijosMes.toLocaleString("es-CO")}`, icon: TrendingDown, color: "rose" },
+                  { label: "Utilidad Neta",     value: `$${kpi.utilidadNeta.toLocaleString("es-CO")}`, icon: DollarSign, color: kpi.utilidadNeta >= 0 ? "emerald" : "rose" },
                   { label: "Producción",        value: `${kpi.unidadProd} und`,                     icon: Factory,      color: "brand" },
                   { label: "Pedidos",           value: pedPeriodo.length,                           icon: Truck,        color: "amber" },
                   { label: "Clientes Activos",  value: clientes.length,                            icon: Users,        color: "brand" },
