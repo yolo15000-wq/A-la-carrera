@@ -66,37 +66,50 @@ export default function ProduccionView() {
 
   const iniciarBatch = async () => {
     if (!form.producto || !user || form.tandas <= 0) return;
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const fechaStr = `${pad(now.getDate())}${pad(now.getMonth()+1)}${now.getFullYear().toString().slice(2)}`;
-    const prefix = form.producto.substring(0, 3).toUpperCase();
-    const id_lote = `${prefix}-${fechaStr}-${String(lotes.length + 1).padStart(2, '0')}`;
 
-    const nuevo: LoteBD = {
-      id_lote,
-      fecha: now.toLocaleDateString('es-CO'),
-      producto: form.producto,
-      tandas: form.tandas,
-      operario: user.username,
-      hora_decimal: 0,
-      horas_formateadas: '0h 0m',
-      estado: 'En Proceso',
-    };
+    try {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const fechaStr = `${pad(now.getDate())}${pad(now.getMonth()+1)}${now.getFullYear().toString().slice(2)}`;
+      const productoStr = String(form.producto || '').trim();
+      const prefix = productoStr.length >= 3
+        ? productoStr.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')
+        : 'LOT';
+      const id_lote = `${prefix}-${fechaStr}-${String(lotes.length + 1).padStart(2, '0')}`;
 
-    const receta = recipes.find(r => r.nombre === form.producto);
-    if (receta) {
-      const isms = receta.ingredientes.map((ing: any) => ({
-        insumo: ing.nombre,
-        cantidad_gr: Number(ing.cant) || 0
-      }));
-      await descontarInsumos(isms, Number(form.tandas));
+      const nuevo: LoteBD = {
+        id_lote,
+        fecha: now.toLocaleDateString('es-CO'),
+        producto: productoStr,
+        tandas: Number(form.tandas) || 1,
+        operario: user?.username ?? 'Operario',
+        hora_decimal: 0,
+        horas_formateadas: '0h 0m',
+        estado: 'En Proceso',
+      };
+
+      const receta = recipes.find(r => r.nombre === form.producto);
+      if (receta && Array.isArray(receta.ingredientes)) {
+        const isms = receta.ingredientes
+          .filter((ing: any) => ing && ing.nombre && Number(ing.cant) > 0)
+          .map((ing: any) => ({
+            insumo: ing.nombre,
+            cantidad_gr: Number(ing.cant) || 0
+          }));
+        if (isms.length > 0) {
+          await descontarInsumos(isms, Number(form.tandas));
+        }
+      }
+
+      await googleSheetsService.appendRow('Produccion', nuevo);
+      setLotes(prev => [nuevo, ...prev]);
+      setBatchesActivos(prev => [nuevo, ...prev]);
+      setShowModal(false);
+      setForm({ producto: '', tandas: 0 });
+    } catch (error) {
+      console.error('[iniciarBatch] Error:', error);
+      alert('Error al iniciar el bache. Por favor intenta de nuevo.');
     }
-
-    await googleSheetsService.appendRow('Produccion', nuevo);
-    setLotes(prev => [nuevo, ...prev]);
-    setBatchesActivos(prev => [nuevo, ...prev]);
-    setShowModal(false);
-    setForm({ producto: '', tandas: 0 });
   };
 
   const prepararFinalizacion = (batch: LoteBD) => {
