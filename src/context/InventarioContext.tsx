@@ -208,12 +208,13 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     setProductosTerminados(prev => {
       const cleanSearch = idOrName.toLowerCase().trim();
       let index = prev.findIndex(p =>
-        p.id.toLowerCase() === cleanSearch || p.nombre.toLowerCase() === cleanSearch
+        p.id.toLowerCase() === cleanSearch || 
+        p.nombre.toLowerCase().trim() === cleanSearch
       );
       if (index === -1) {
         index = prev.findIndex(p =>
-          p.nombre.toLowerCase().includes(cleanSearch) ||
-          cleanSearch.includes(p.nombre.toLowerCase())
+          p.nombre.toLowerCase().trim().includes(cleanSearch) ||
+          cleanSearch.includes(p.nombre.toLowerCase().trim())
         );
       }
 
