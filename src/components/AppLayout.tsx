@@ -17,8 +17,9 @@ import CarteraView from "../views/CarteraView";
 import ReportesView from "../views/ReportesView";
 import MaestrosView from "../views/MaestrosView";
 import PedidosView from "../views/PedidosView";
+import FinanzasView from "../views/FinanzasView";
 import AIAssistant from "./AIAssistant";
-import { Database, ShoppingBag } from "lucide-react";
+import { Database, ShoppingBag, TrendingUp } from "lucide-react";
 
 const MENU_ITEMS = [
   { icon: Home,         label: 'Inicio',                badge: 0 },
@@ -30,6 +31,7 @@ const MENU_ITEMS = [
   { icon: Wallet,       label: 'Cartera',               badge: 0 },
   { icon: PackageCheck, label: 'Producto Terminado',    badge: 0 },
   { icon: Package,      label: 'Materia Prima',         badge: 0 },
+  { icon: TrendingUp,   label: 'Finanzas',              badge: 0 },
   { icon: BarChart3,    label: 'Reportes',              badge: 0 },
   { icon: Database,     label: 'Catálogos',             badge: 0 },
 ];
@@ -113,6 +115,7 @@ const MainContent = () => {
       case 'Cartera':             return <CarteraView />;
       case 'Producto Terminado':  return <ProductosTerminadosView />;
       case 'Materia Prima':       return <MateriaPrimaView />;
+      case 'Finanzas':            return <FinanzasView />;
       case 'Reportes':            return <ReportesView />;
       case 'Configuración':       return <ConfiguracionView />;
       case 'Catálogos':           return <MaestrosView />;
