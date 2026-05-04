@@ -151,7 +151,7 @@ export default function VentasView() {
 
   // ── Registrar liquidación completa ───────────────────────────────────────
   const registrarLiquidacion = async () => {
-    if (!salidaActual || !formularioOk) return;
+    if (!salidaActual || !formularioOk || saving) return; // Evita clics dobles
     setSaving(true);
     const fecha = new Date().toLocaleDateString('es-CO');
 
@@ -177,7 +177,6 @@ export default function VentasView() {
       const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado };
       const res = await googleSheetsService.appendRow('Liquidacion', liqContado);
       if (!res) hayError = true;
-      setHistorial(prev => [liqContado, ...prev]);
     }
 
     // 2. Registrar cada venta a crédito
@@ -195,7 +194,6 @@ export default function VentasView() {
       };
       const resCred = await googleSheetsService.appendRow('Liquidacion', liqCred);
       if (!resCred) hayError = true;
-      setHistorial(prev => [liqCred, ...prev]);
 
       // Registrar crédito en cartera (monto en PESOS, no en unidades)
       await registrarCredito({
