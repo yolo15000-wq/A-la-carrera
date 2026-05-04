@@ -97,12 +97,30 @@ export default function VentasView() {
       : salidas,
     [salidas, user]
   );
-  const historialFiltrado = useMemo(() =>
-    user?.role === 'vendedor'
+  const historialFiltrado = useMemo(() => {
+    const base = user?.role === 'vendedor'
       ? historial.filter(h => h.vendedor === user.username)
-      : historial,
-    [historial, user]
-  );
+      : historial;
+    
+    // Unificar duplicados por liquidación (misma fecha, vendedor, producto y ruta)
+    const unificados: any[] = [];
+    base.forEach(item => {
+      const key = `${item.fecha}-${item.vendedor}-${item.producto}-${item.ruta}`;
+      const existente = unificados.find(u => `${u.fecha}-${u.vendedor}-${u.producto}-${u.ruta}` === key);
+      
+      if (existente) {
+        existente.cantidad_venta = (Number(existente.cantidad_venta) || 0) + (Number(item.cantidad_venta) || 0);
+        existente.total_pesos = (Number(existente.total_pesos) || 0) + (Number(item.total_pesos) || 0);
+        if (existente.tipo_pago !== item.tipo_pago) existente.tipo_pago = 'Mixto';
+        if (item.cliente && !existente.cliente?.includes(item.cliente)) {
+          existente.cliente = existente.cliente ? `${existente.cliente}, ${item.cliente}` : item.cliente;
+        }
+      } else {
+        unificados.push({ ...item });
+      }
+    });
+    return unificados;
+  }, [historial, user]);
 
   // ── Registrar salida multiproducto ───────────────────────────────────────
   const registrarSalida = async () => {
@@ -151,7 +169,7 @@ export default function VentasView() {
 
   // ── Registrar liquidación completa ───────────────────────────────────────
   const registrarLiquidacion = async () => {
-    if (!salidaActual || !formularioOk || saving) return; // Evita clics dobles
+    if (!salidaActual || !formularioOk) return;
     setSaving(true);
     const fecha = new Date().toLocaleDateString('es-CO');
 
@@ -177,6 +195,7 @@ export default function VentasView() {
       const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado };
       const res = await googleSheetsService.appendRow('Liquidacion', liqContado);
       if (!res) hayError = true;
+      setHistorial(prev => [liqContado, ...prev]);
     }
 
     // 2. Registrar cada venta a crédito
@@ -194,6 +213,7 @@ export default function VentasView() {
       };
       const resCred = await googleSheetsService.appendRow('Liquidacion', liqCred);
       if (!resCred) hayError = true;
+      setHistorial(prev => [liqCred, ...prev]);
 
       // Registrar crédito en cartera (monto en PESOS, no en unidades)
       await registrarCredito({
