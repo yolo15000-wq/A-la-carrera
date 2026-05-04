@@ -114,11 +114,16 @@ export default function ProduccionView() {
     const fin = new Date();
     const totalUnidades = productosFinales.reduce((acc, curr) => acc + curr.cantidad, 0);
 
+    const nombresProductos = productosFinales.length === 1 
+      ? productosFinales[0].producto 
+      : productosFinales.map(p => `${p.producto} (${p.cantidad})`).join(' + ');
+
     const updates = {
       estado: 'Terminado' as const,
       hora_decimal: 0,
       horas_formateadas: `${fin.getHours()}h ${fin.getMinutes()}m`,
       unidades_reales: totalUnidades,
+      producto: nombresProductos,
       nota: notaLote || '',
     };
 
