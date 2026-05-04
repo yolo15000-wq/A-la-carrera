@@ -1,5 +1,5 @@
-import { useContext, useState, useMemo } from "react";
-import { Plus, AlertTriangle, Package, TrendingUp, X, Check, Trash2 } from "lucide-react";
+import { useContext, useState, useMemo, useEffect } from "react";
+import { Plus, AlertTriangle, Package, TrendingUp, X, Check, Trash2, History, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { STOCK_MINIMOS } from "../data/datos";
 import { InventarioContext } from "../context/InventarioContext";
 import { useAuth } from "../context/AuthContext";
@@ -32,6 +32,26 @@ export default function MateriaPrimaView() {
   const [nueva, setNueva]           = useState({ nombre: '', unidad: 'gr', stock_minimo: 0, existencia: 0 });
   const [saving, setSaving]         = useState(false);
   const [ok, setOk]                 = useState<string | null>(null);
+  const [activeTab, setActiveTab]   = useState<'inventario' | 'historial'>('inventario');
+  const [historial, setHistorial]   = useState<any[]>([]);
+  const [loadingHist, setLoadingHist] = useState(false);
+
+  // Cargar historial desde Supabase
+  useEffect(() => {
+    async function loadHistorial() {
+      setLoadingHist(true);
+      try {
+        const { data } = await supabase
+          .from('inventario_historial')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(200);
+        setHistorial(data ?? []);
+      } catch (e) { console.error(e); }
+      finally { setLoadingHist(false); }
+    }
+    loadHistorial();
+  }, []);
 
   // ── Modal nueva bolsa ──────────────────────────────────────────────────
   const [showNuevaBolsa, setShowNuevaBolsa] = useState(false);
@@ -50,15 +70,30 @@ export default function MateriaPrimaView() {
 
   const { descontarInsumoExtra } = useContext(InventarioContext);
 
-  const registrarCompra = () => {
+  const registrarCompra = async () => {
     if (!compra.codigo || compra.cantidad <= 0) return;
-    
+    const insumoNombre = insumos.find(i => i.codigo === compra.codigo)?.insumo ?? compra.codigo;
+
     if (compra.tipo === 'ingreso') {
        agregarInsumo(compra.codigo, compra.cantidad);
     } else {
        descontarInsumoExtra(compra.codigo, compra.cantidad);
     }
-    
+
+    // Guardar en historial de Supabase
+    try {
+      const registro = {
+        insumo: insumoNombre,
+        codigo: compra.codigo,
+        tipo: compra.tipo === 'ingreso' ? 'Ingreso' : 'Salida',
+        cantidad: compra.cantidad,
+        usuario: user?.username ?? 'Admin',
+        fecha: new Date().toLocaleDateString('es-CO'),
+      };
+      const { data } = await supabase.from('inventario_historial').insert([registro]).select().single();
+      if (data) setHistorial(prev => [data, ...prev]);
+    } catch (e) { console.error('Error guardando historial:', e); }
+
     setShowModal(false);
     setCompra({ codigo: '', cantidad: 0, tipo: 'ingreso' });
     setOk("✅ Inventario actualizado");
@@ -155,6 +190,12 @@ export default function MateriaPrimaView() {
               className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-4 rounded-3xl font-black uppercase text-xs tracking-widest transition-all active:scale-95">
               <Plus className="h-4 w-4" /> Nueva MP
             </button>
+            <button onClick={() => { setActiveTab('historial'); }}
+              className={`flex items-center gap-3 px-6 py-4 rounded-3xl font-black uppercase text-xs tracking-widest transition-all active:scale-95 ${
+                activeTab === 'historial' ? 'bg-gray-800 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}>
+              <History className="h-4 w-4" /> Historial
+            </button>
             <button onClick={() => setShowModal(true)}
               className="flex items-center gap-3 bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition-all">
               <TrendingUp className="h-5 w-5" /> Ajustar MP
@@ -163,6 +204,64 @@ export default function MateriaPrimaView() {
         )}
       </div>
 
+      {/* ── TAB HISTORIAL ──────────────────────────────────────────────────── */}
+      {activeTab === 'historial' && (
+        <div className="bg-white dark:bg-gray-900 rounded-[35px] border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-8 py-5 border-b border-gray-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <History size={16} className="text-brand-500" />
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500">Historial de Ajustes de Inventario</h3>
+            </div>
+            <button onClick={() => setActiveTab('inventario')} className="text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase">
+              ← Volver al Inventario
+            </button>
+          </div>
+          {loadingHist ? (
+            <div className="p-16 text-center text-gray-300 font-black uppercase italic animate-pulse">Cargando historial...</div>
+          ) : historial.length === 0 ? (
+            <div className="p-16 text-center text-gray-300 font-black uppercase italic">
+              <History size={40} className="mx-auto mb-3 opacity-30" />
+              Sin ajustes registrados aún
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 text-[9px] font-black text-gray-400 uppercase tracking-[2px]">
+                  <tr>
+                    {["Fecha","Insumo","Tipo","Cantidad","Usuario"].map(h => (
+                      <th key={h} className="px-6 py-4">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {historial.map((h: any, i) => (
+                    <tr key={i} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-6 py-4 text-[10px] text-gray-400 font-bold whitespace-nowrap">{h.fecha || new Date(h.created_at).toLocaleDateString('es-CO')}</td>
+                      <td className="px-6 py-4 font-black uppercase italic text-sm">{h.insumo}</td>
+                      <td className="px-6 py-4">
+                        <span className={`flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                          h.tipo === 'Ingreso' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {h.tipo === 'Ingreso' ? <ArrowUpCircle size={10} /> : <ArrowDownCircle size={10} />}
+                          {h.tipo}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-black text-lg text-gray-900">
+                        {h.tipo === 'Ingreso' ? '+' : '-'}{Number(h.cantidad).toLocaleString('es-CO')}
+                        <span className="text-[10px] text-gray-400 font-bold ml-1">und/gr</span>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{h.usuario}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'inventario' && (
+        <>
       {/* ═══ SECCIÓN: MATERIA PRIMA ═══════════════════════════════════════════ */}
       <div>
         <div className="flex items-center gap-3 mb-4">
@@ -473,6 +572,8 @@ export default function MateriaPrimaView() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

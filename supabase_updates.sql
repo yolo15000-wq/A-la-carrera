@@ -40,5 +40,14 @@ ALTER TABLE clientes ADD COLUMN IF NOT EXISTS vendedor TEXT;
 CREATE INDEX IF NOT EXISTS idx_liquidaciones_fecha ON liquidaciones(fecha);
 CREATE INDEX IF NOT EXISTS idx_produccion_fecha ON produccion(fecha);
 
--- ── AGREGAR NOTA A PRODUCCION ──────────────────────────────
-ALTER TABLE produccion ADD COLUMN IF NOT EXISTS nota TEXT;
+-- ── HISTORIAL DE INVENTARIO DE MATERIAS PRIMAS ─────────────────────────
+CREATE TABLE IF NOT EXISTS inventario_historial (
+  id          BIGSERIAL PRIMARY KEY,
+  insumo      TEXT NOT NULL,
+  codigo      TEXT,
+  tipo        TEXT NOT NULL,        -- 'Ingreso' | 'Salida'
+  cantidad    NUMERIC NOT NULL,
+  usuario     TEXT,
+  fecha       TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
