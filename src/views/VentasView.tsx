@@ -101,25 +101,32 @@ export default function VentasView() {
     const base = user?.role === 'vendedor'
       ? historial.filter(h => h.vendedor === user.username)
       : historial;
-
-    // Unificar duplicados por liquidación (misma fecha, vendedor, producto y ruta)
-    const unificados: any[] = [];
-    base.forEach(item => {
-      const key = `${item.fecha}-${item.vendedor}-${item.producto}-${item.ruta}`;
-      const existente = unificados.find(u => `${u.fecha}-${u.vendedor}-${u.producto}-${u.ruta}` === key);
-
-      if (existente) {
+    
+    // Unificar duplicados por liquidación (misma fecha, vendedor, producto, ruta Y tipo_pago)
+    // Usar objeto para búsqueda O(1) y mejorar el rendimiento de carga
+    const unificadosMap: Record<string, any> = {};
+    
+    for (const item of base) {
+      // Incluimos tipo_pago en la clave para no mezclar Contado y Crédito (y así no perderlos de las tablas)
+      const key = `${item.fecha}-${item.vendedor}-${item.producto}-${item.ruta}-${item.tipo_pago}`;
+      
+      if (unificadosMap[key]) {
+        const existente = unificadosMap[key];
         existente.cantidad_venta = (Number(existente.cantidad_venta) || 0) + (Number(item.cantidad_venta) || 0);
         existente.total_pesos = (Number(existente.total_pesos) || 0) + (Number(item.total_pesos) || 0);
-        if (existente.tipo_pago !== item.tipo_pago) existente.tipo_pago = 'Mixto';
         if (item.cliente && !existente.cliente?.includes(item.cliente)) {
           existente.cliente = existente.cliente ? `${existente.cliente}, ${item.cliente}` : item.cliente;
         }
       } else {
-        unificados.push({ ...item });
+        unificadosMap[key] = { ...item };
       }
+    }
+    
+    // Ordenar de más reciente a más antiguo (opcional pero recomendado)
+    return Object.values(unificadosMap).sort((a, b) => {
+      if (b.id && a.id) return String(b.id).localeCompare(String(a.id));
+      return 0;
     });
-    return unificados;
   }, [historial, user]);
 
   // ── Registrar salida multiproducto ───────────────────────────────────────
