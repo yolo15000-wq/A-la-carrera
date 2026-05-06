@@ -205,6 +205,16 @@ export default function VentasView() {
         const res = await googleSheetsService.appendRow('Liquidacion', liqContado);
         if (!res) hayError = true;
         setHistorial(prev => [liqContado, ...prev]);
+
+        // Ingresar el dinero a Caja automáticamente
+        await supabase.from('caja_banco').insert([{
+          fecha: new Date().toISOString().slice(0, 10),
+          concepto: `Venta Contado: ${salidaActual.producto} x${cantidadContado}`,
+          tipo: 'Ingreso',
+          monto: totalContado,
+          creado_por: salidaActual.vendedor,
+          saldo_acum: 0
+        }]);
       }
 
       // 2. Registrar cada venta a crédito

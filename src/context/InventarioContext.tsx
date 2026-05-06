@@ -290,15 +290,29 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     googleSheetsService.appendRow('Cartera', nuevo).catch(err => console.error("Error sync Cartera:", err));
   }, []);
 
-  const marcarPagoCredito = useCallback((id_credito: string | number) => {
+  const marcarPagoCredito = useCallback(async (id_credito: string | number) => {
     setCreditos(prev => prev.map(c => {
       if (c.id_credito === id_credito) {
+        // Actualizar en hoja de cálculo/base de datos
         googleSheetsService.updateRow('Cartera', 'id_credito', id_credito, { estado: 'Pagado' });
+        
+        // Ingresar el dinero a Caja automáticamente
+        supabase.from('caja_banco').insert([{
+          fecha: new Date().toISOString().slice(0, 10),
+          concepto: `Recaudo Cartera: ${c.cliente}`,
+          tipo: 'Ingreso',
+          monto: Number(c.monto_deuda),
+          creado_por: user?.username || 'Sistema',
+          saldo_acum: 0 // Se calcula dinámicamente en Finanzas
+        }]).then(({ error }) => {
+          if (error) console.error("Error al registrar abono en caja:", error);
+        });
+
         return { ...c, estado: 'Pagado' };
       }
       return c;
     }));
-  }, []);
+  }, [user]);
 
   const registrarPedido = useCallback(async (nuevo: Pedido) => {
     try {

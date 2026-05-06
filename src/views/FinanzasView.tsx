@@ -190,7 +190,22 @@ export default function FinanzasView() {
     const { data, error } = await supabase.from("gastos").insert([{ ...formGasto }]).select().single();
     if (!error && data) {
       setGastos(prev => [data, ...prev]);
-      showMsg("✅ Gasto variable registrado");
+      
+      // Descontar automáticamente de la caja
+      const { data: cajaData } = await supabase.from('caja_banco').insert([{
+          fecha: formGasto.fecha,
+          concepto: `Pago Gasto: ${formGasto.categoria} - ${formGasto.descripcion}`,
+          tipo: 'Egreso',
+          monto: formGasto.monto,
+          creado_por: formGasto.vendedor,
+          saldo_acum: 0
+      }]).select().single();
+      
+      if (cajaData) {
+          setMovimientos(prev => [cajaData, ...prev]);
+      }
+
+      showMsg("✅ Gasto registrado y descontado de caja");
       setShowModal(null);
       setFormGasto({ ...formGasto, descripcion: "", monto: 0 });
     }
