@@ -302,7 +302,7 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
           concepto: `Recaudo Cartera: ${c.cliente}`,
           tipo: 'Ingreso',
           monto: Number(c.monto_deuda),
-          creado_por: user?.username || 'Sistema',
+          creado_por: c.vendedor || 'Sistema',
           saldo_acum: 0 // Se calcula dinámicamente en Finanzas
         }]).then(({ error }) => {
           if (error) console.error("Error al registrar abono en caja:", error);
@@ -312,7 +312,7 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
       }
       return c;
     }));
-  }, [user]);
+  }, []);
 
   const registrarPedido = useCallback(async (nuevo: Pedido) => {
     try {
