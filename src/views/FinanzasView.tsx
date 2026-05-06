@@ -123,20 +123,34 @@ export default function FinanzasView() {
     finally { setLoading(false); }
   }
   
+  const [totalContado, setTotalContado] = useState(0);
+  const [totalCredito, setTotalCredito] = useState(0);
+
   // Carga de ingresos brutos mes actual (Liquidaciones)
   useEffect(() => {
     async function fetchIngresos() {
-      const { data } = await supabase.from("liquidaciones").select("total_pesos, fecha");
+      const { data } = await supabase.from("liquidaciones").select("total_pesos, fecha, tipo_pago");
       if (data) {
         // Filtrar por mes/año seleccionado
-        const total = data.filter(row => {
+        const liquidacionesMes = data.filter(row => {
           if (!row.fecha) return false;
           const [d, m, y] = row.fecha.split("/").map(Number);
           // Si el formato es DD/MM/YYYY
           if (m && y) return m - 1 === mesSeleccionado && y === anioSeleccionado;
           return false;
-        }).reduce((acc, row) => acc + (Number(row.total_pesos) || 0), 0);
-        setIngresosBrutos(total);
+        });
+        
+        const contado = liquidacionesMes
+          .filter(r => r.tipo_pago === 'Contado')
+          .reduce((acc, row) => acc + (Number(row.total_pesos) || 0), 0);
+          
+        const credito = liquidacionesMes
+          .filter(r => r.tipo_pago === 'Crédito')
+          .reduce((acc, row) => acc + (Number(row.total_pesos) || 0), 0);
+
+        setTotalContado(contado);
+        setTotalCredito(credito);
+        setIngresosBrutos(contado + credito);
       }
     }
     fetchIngresos();
@@ -280,22 +294,26 @@ export default function FinanzasView() {
           ========================================================================= */}
           {activeTab === "pnl" && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Ingresos Operacionales</p>
-                  <p className="text-2xl font-black text-emerald-600">{fmtCOP(ingresosTotales)}</p>
+                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Total Ingresos</p>
+                  <p className="text-2xl font-black text-brand-600">{fmtCOP(ingresosTotales)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Efectivo / Contado</p>
+                  <p className="text-2xl font-black text-emerald-600">{fmtCOP(totalContado)}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
                   <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Gastos Variables</p>
                   <p className="text-2xl font-black text-rose-500">{fmtCOP(totalGastosVariables)}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Gastos Fijos Mensuales</p>
+                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Gastos Fijos Mes</p>
                   <p className="text-2xl font-black text-orange-500">{fmtCOP(totalGastosFijosMes)}</p>
                 </div>
-                <div className={`p-5 rounded-2xl border shadow-sm ${utilidadNeta >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                  <p className={`text-[10px] font-black uppercase mb-1 ${utilidadNeta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Utilidad Neta del Mes</p>
-                  <p className={`text-3xl font-black ${utilidadNeta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtCOP(utilidadNeta)}</p>
+                <div className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-center ${utilidadNeta >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                  <p className={`text-[10px] font-black uppercase mb-1 ${utilidadNeta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Utilidad Neta</p>
+                  <p className={`text-2xl md:text-3xl font-black ${utilidadNeta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtCOP(utilidadNeta)}</p>
                 </div>
               </div>
 
