@@ -346,39 +346,96 @@ export default function VentasView() {
             )}
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-900 rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 uppercase font-black text-[9px] text-gray-400 tracking-[2px]">
-                  <tr>
-                    {['Fecha','Vendedor','Producto','Tipo','Cant. (UND)','Valor ($)','Cliente'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {historialFiltrado.map((l, i) => (
-                    <tr key={String(l.id ?? i)} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 text-[10px] font-bold text-gray-400">{l.fecha}</td>
-                      <td className="px-6 py-4 font-black text-xs uppercase italic">{l.vendedor}</td>
-                      <td className="px-6 py-4 font-black text-gray-900 uppercase italic text-xs">{l.producto}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${l.tipo_pago === 'Contado' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
-                          {l.tipo_pago}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-black text-center text-gray-900">
-                        {l.cantidad_venta} <span className="text-[9px] text-gray-400 font-bold">und</span>
-                      </td>
-                      <td className="px-6 py-4 font-black text-center">
-                        {l.total_pesos
-                          ? <span className="text-brand-500">${Number(l.total_pesos).toLocaleString('es-CO')}</span>
-                          : <span className="text-gray-300">—</span>
-                        }
-                      </td>
-                      <td className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase">{l.cliente ?? '—'}</td>
+          <div className="space-y-6">
+            {/* Totales Resumen */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[30px] flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mb-1">Total Contado</p>
+                  <p className="text-3xl font-black text-emerald-700">${historialFiltrado.filter(l => l.tipo_pago === 'Contado').reduce((a, l) => a + Number(l.total_pesos || 0), 0).toLocaleString('es-CO')}</p>
+                </div>
+                <div className="h-12 w-12 bg-emerald-200 text-emerald-700 rounded-full flex items-center justify-center font-black text-xl">
+                  $
+                </div>
+              </div>
+              <div className="bg-orange-50 border border-orange-100 p-6 rounded-[30px] flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-orange-600 font-black uppercase tracking-widest mb-1">Total Crédito</p>
+                  <p className="text-3xl font-black text-orange-700">${historialFiltrado.filter(l => l.tipo_pago === 'Crédito').reduce((a, l) => a + Number(l.total_pesos || 0), 0).toLocaleString('es-CO')}</p>
+                </div>
+                <div className="h-12 w-12 bg-orange-200 text-orange-700 rounded-full flex items-center justify-center font-black text-xl">
+                  $
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla Contado */}
+            <div className="bg-white dark:bg-gray-900 rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-emerald-500 text-white p-4 font-black uppercase tracking-[2px] text-xs text-center">
+                Ventas de Contado
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 uppercase font-black text-[9px] text-gray-400 tracking-[2px]">
+                    <tr>
+                      {['Fecha','Vendedor','Producto','Cant. (UND)','Valor ($)'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {historialFiltrado.filter(l => l.tipo_pago === 'Contado').map((l, i) => (
+                      <tr key={String(l.id ?? i)} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4 text-[10px] font-bold text-gray-400">{l.fecha}</td>
+                        <td className="px-6 py-4 font-black text-xs uppercase italic">{l.vendedor}</td>
+                        <td className="px-6 py-4 font-black text-gray-900 uppercase italic text-xs">{l.producto}</td>
+                        <td className="px-6 py-4 font-black text-center text-gray-900">
+                          {l.cantidad_venta} <span className="text-[9px] text-gray-400 font-bold">und</span>
+                        </td>
+                        <td className="px-6 py-4 font-black text-center text-emerald-600">
+                          ${Number(l.total_pesos).toLocaleString('es-CO')}
+                        </td>
+                      </tr>
+                    ))}
+                    {historialFiltrado.filter(l => l.tipo_pago === 'Contado').length === 0 && (
+                      <tr><td colSpan={5} className="py-8 text-center text-gray-300 font-black uppercase italic">Sin registros de contado</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Tabla Crédito */}
+            <div className="bg-white dark:bg-gray-900 rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-orange-500 text-white p-4 font-black uppercase tracking-[2px] text-xs text-center">
+                Ventas a Crédito
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 uppercase font-black text-[9px] text-gray-400 tracking-[2px]">
+                    <tr>
+                      {['Fecha','Vendedor','Producto','Cliente','Cant. (UND)','Valor ($)'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {historialFiltrado.filter(l => l.tipo_pago === 'Crédito').map((l, i) => (
+                      <tr key={String(l.id ?? i)} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4 text-[10px] font-bold text-gray-400">{l.fecha}</td>
+                        <td className="px-6 py-4 font-black text-xs uppercase italic">{l.vendedor}</td>
+                        <td className="px-6 py-4 font-black text-gray-900 uppercase italic text-xs">{l.producto}</td>
+                        <td className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase">{l.cliente ?? '—'}</td>
+                        <td className="px-6 py-4 font-black text-center text-gray-900">
+                          {l.cantidad_venta} <span className="text-[9px] text-gray-400 font-bold">und</span>
+                        </td>
+                        <td className="px-6 py-4 font-black text-center text-orange-600">
+                          ${Number(l.total_pesos).toLocaleString('es-CO')}
+                        </td>
+                      </tr>
+                    ))}
+                    {historialFiltrado.filter(l => l.tipo_pago === 'Crédito').length === 0 && (
+                      <tr><td colSpan={6} className="py-8 text-center text-gray-300 font-black uppercase italic">Sin registros de crédito</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )
