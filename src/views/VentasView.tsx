@@ -171,98 +171,105 @@ export default function VentasView() {
   const registrarLiquidacion = async () => {
     if (!salidaActual || !formularioOk) return;
     setSaving(true);
-    const fecha = new Date().toLocaleDateString('es-CO');
+    
+    try {
+      const fecha = new Date().toLocaleDateString('es-CO');
 
-    // Buscar precio del producto para calcular valor real de la deuda
-    const productoObj = products.find(
-      p => p.nombre.toLowerCase() === salidaActual.producto.toLowerCase()
-    );
-    const precioUnitario = productoObj?.precio ?? 0;
+      // Buscar precio del producto para calcular valor real de la deuda
+      const productoObj = productosTerminados.find(
+        p => p.nombre.toLowerCase() === salidaActual.producto.toLowerCase()
+      );
+      const precioUnitario = productoObj?.precio_venta ?? 0;
 
-    // Base sin salida_id para evitar problemas de FK
-    const base = {
-      fecha,
-      vendedor: salidaActual.vendedor, ruta: salidaActual.ruta,
-      producto: salidaActual.producto, precio_unitario: precioUnitario,
-      cantidad_salida: salidaActual.cantidad_salida,
-      cantidad_devolucion: 0,
-    };
-    let hayError = false;
-
-    // 1. Registrar venta de contado
-    if (cantidadContado > 0) {
-      const totalContado = cantidadContado * precioUnitario;
-      const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado };
-      const res = await googleSheetsService.appendRow('Liquidacion', liqContado);
-      if (!res) hayError = true;
-      setHistorial(prev => [liqContado, ...prev]);
-    }
-
-    // 2. Registrar cada venta a crédito
-    for (const cr of creditosItems) {
-      // CORRECTO: monto en pesos = unidades × precio
-      const montoPesos = cr.cantidad * precioUnitario;
-      const liqCred = {
-        ...base,
-        id: `LIQ-${Date.now()}-CR-${cr.clienteNombre.replace(/\s/g,'')}`,
-        tipo_pago: 'Crédito',
-        cantidad_venta: cr.cantidad,
-        total_pesos: montoPesos,
-        cliente: cr.clienteNombre, telefono: cr.telefono,
-        direccion: cr.direccion, fecha_cobro: cr.fecha_cobro,
+      // Base sin salida_id para evitar problemas de FK
+      const base = {
+        fecha,
+        vendedor: salidaActual.vendedor, ruta: salidaActual.ruta,
+        producto: salidaActual.producto, precio_unitario: precioUnitario,
+        cantidad_salida: salidaActual.cantidad_salida,
+        cantidad_devolucion: 0,
       };
-      const resCred = await googleSheetsService.appendRow('Liquidacion', liqCred);
-      if (!resCred) hayError = true;
-      setHistorial(prev => [liqCred, ...prev]);
+      let hayError = false;
 
-      // Registrar crédito en cartera (monto en PESOS, no en unidades)
-      await registrarCredito({
-        id_credito: `CRD-${Date.now()}-${cr.clienteNombre.replace(/\s/g,'')}`,
-        cliente: cr.clienteNombre,
-        vendedor: salidaActual.vendedor,
-        monto_deuda: montoPesos,             // ← PESOS REALES
-        fecha_cobro: cr.fecha_cobro,
-        estado: 'Pendiente',
-        telefono: cr.telefono,
-        direccion: cr.direccion,
-        fecha_registro: fecha,
-      });
-
-      // Auto-registrar cliente si no existe
-      const existe = clientes.find(c => c.nombre.toLowerCase() === cr.clienteNombre.toLowerCase());
-      if (!existe) {
-        await agregarCliente({
-          nombre: cr.clienteNombre, telefono: cr.telefono,
-          direccion: cr.direccion, ruta: salidaActual.ruta,
-          vendedor: salidaActual.vendedor,
-        });
+      // 1. Registrar venta de contado
+      if (cantidadContado > 0) {
+        const totalContado = cantidadContado * precioUnitario;
+        const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado };
+        const res = await googleSheetsService.appendRow('Liquidacion', liqContado);
+        if (!res) hayError = true;
+        setHistorial(prev => [liqContado, ...prev]);
       }
-    }
 
-    if (hayError) {
-      alert('⚠️ Error al guardar liquidación en la base de datos. Verifica tu conexión e intenta de nuevo.');
-    }
+      // 2. Registrar cada venta a crédito
+      for (const cr of creditosItems) {
+        // CORRECTO: monto en pesos = unidades × precio
+        const montoPesos = cr.cantidad * precioUnitario;
+        const liqCred = {
+          ...base,
+          id: `LIQ-${Date.now()}-CR-${cr.clienteNombre.replace(/\s/g,'')}`,
+          tipo_pago: 'Crédito',
+          cantidad_venta: cr.cantidad,
+          total_pesos: montoPesos,
+          cliente: cr.clienteNombre, telefono: cr.telefono,
+          direccion: cr.direccion, fecha_cobro: cr.fecha_cobro,
+        };
+        const resCred = await googleSheetsService.appendRow('Liquidacion', liqCred);
+        if (!resCred) hayError = true;
+        setHistorial(prev => [liqCred, ...prev]);
 
-    // 3. Devolucion → reintegrar stock
-    if (devolucion > 0 && !isVentaParcial) {
-      await agregarProductoTerminado(salidaActual.producto, devolucion);
-    }
+        // Registrar crédito en cartera (monto en PESOS, no en unidades)
+        await registrarCredito({
+          id_credito: `CRD-${Date.now()}-${cr.clienteNombre.replace(/\s/g,'')}`,
+          cliente: cr.clienteNombre,
+          vendedor: salidaActual.vendedor,
+          monto_deuda: montoPesos,             // ← PESOS REALES
+          fecha_cobro: cr.fecha_cobro,
+          estado: 'Pendiente',
+          telefono: cr.telefono,
+          direccion: cr.direccion,
+          fecha_registro: fecha,
+        });
 
-    // 4. Marcar la salida como liquidada o restar la cantidad si es parcial
-    if (isVentaParcial) {
-      const nuevaCantidad = salidaActual.cantidad_salida - totalVendido;
-      await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { cantidad_salida: nuevaCantidad });
-      setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, cantidad_salida: nuevaCantidad } : s));
-    } else {
-      await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { estado: 'Liquidado' });
-      setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, estado: 'Liquidado' as const } : s));
-    }
+        // Auto-registrar cliente si no existe
+        const existe = clientes.find(c => c.nombre.toLowerCase() === cr.clienteNombre.toLowerCase());
+        if (!existe) {
+          await agregarCliente({
+            nombre: cr.clienteNombre, telefono: cr.telefono,
+            direccion: cr.direccion, ruta: salidaActual.ruta,
+            vendedor: salidaActual.vendedor,
+          });
+        }
+      }
 
-    setShowLiqModal(false);
-    setSalidaActual(null);
-    setSaving(false);
-    setMensajeExito(`✅ Liquidación registrada — ${cantidadContado} contado · ${totalCredito} crédito · ${devolucion} devueltos`);
-    setTimeout(() => setMensajeExito(null), 5000);
+      if (hayError) {
+        alert('⚠️ Error al guardar liquidación en la base de datos. Verifica tu conexión e intenta de nuevo.');
+      }
+
+      // 3. Devolucion → reintegrar stock
+      if (devolucion > 0 && !isVentaParcial) {
+        await agregarProductoTerminado(salidaActual.producto, devolucion);
+      }
+
+      // 4. Marcar la salida como liquidada o restar la cantidad si es parcial
+      if (isVentaParcial) {
+        const nuevaCantidad = salidaActual.cantidad_salida - totalVendido;
+        await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { cantidad_salida: nuevaCantidad });
+        setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, cantidad_salida: nuevaCantidad } : s));
+      } else {
+        await googleSheetsService.updateRow('Ventas', 'id', salidaActual.id, { estado: 'Liquidado' });
+        setSalidas(prev => prev.map(s => s.id === salidaActual.id ? { ...s, estado: 'Liquidado' as const } : s));
+      }
+
+      setShowLiqModal(false);
+      setSalidaActual(null);
+      setMensajeExito(`✅ Liquidación registrada — ${cantidadContado} contado · ${totalCredito} crédito · ${devolucion} devueltos`);
+      setTimeout(() => setMensajeExito(null), 5000);
+    } catch (err) {
+      console.error(err);
+      alert('⚠️ Hubo un error inesperado al registrar la liquidación.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const sugerenciasCliente = clientes.filter(c =>
