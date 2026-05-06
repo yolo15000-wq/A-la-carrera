@@ -33,31 +33,31 @@ interface CreditoItem {
 }
 
 export default function VentasView() {
-  const { user }  = useAuth();
-  const { rutas }  = useCatalogos();
+  const { user } = useAuth();
+  const { rutas } = useCatalogos();
   const { descontarProductoTerminado, agregarProductoTerminado, registrarCredito, productosTerminados } = useContext(InventarioContext);
   const { clientes, agregarCliente } = useClientes();
 
-  const [activeTab, setActiveTab]   = useState<'salidas' | 'historial'>('salidas');
-  const [salidas, setSalidas]        = useState<SalidaRuta[]>([]);
-  const [historial, setHistorial]    = useState<any[]>([]);
-  const [isLoading, setIsLoading]    = useState(true);
-  const [saving, setSaving]          = useState(false);
+  const [activeTab, setActiveTab] = useState<'salidas' | 'historial'>('salidas');
+  const [salidas, setSalidas] = useState<SalidaRuta[]>([]);
+  const [historial, setHistorial] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
   // ── Formulario salida multiproducto ─────────────────────────────────────
   const [showSalidaModal, setShowSalidaModal] = useState(false);
   const [formSalida, setFormSalida] = useState({ ruta: '', vendedor: '', items: [] as ItemSalida[] });
-  const [tempItem, setTempItem]     = useState<ItemSalida>({ producto: '', cantidad: 0 });
+  const [tempItem, setTempItem] = useState<ItemSalida>({ producto: '', cantidad: 0 });
 
   // ── Formulario liquidación ────────────────────────────────────────────────
   const [showLiqModal, setShowLiqModal] = useState(false);
   const [isVentaParcial, setIsVentaParcial] = useState(false);
   const [salidaActual, setSalidaActual] = useState<SalidaRuta | null>(null);
-  const [devolucion, setDevolucion]     = useState(0);
+  const [devolucion, setDevolucion] = useState(0);
   const [cantidadContado, setCantidadContado] = useState(0);
-  const [creditosItems, setCreditosItems]     = useState<CreditoItem[]>([]);
-  const [isNewClient, setIsNewClient]         = useState(false);
+  const [creditosItems, setCreditosItems] = useState<CreditoItem[]>([]);
+  const [isNewClient, setIsNewClient] = useState(false);
 
   // Nuevo crédito temporal
   const [nuevoCredito, setNuevoCredito] = useState<CreditoItem>({
@@ -67,11 +67,11 @@ export default function VentasView() {
   const [showClienteSugg, setShowClienteSugg] = useState(false);
 
   // Cálculos del modal de liquidación
-  const totalLlevado   = salidaActual?.cantidad_salida ?? 0;
-  const totalCredito   = creditosItems.reduce((s, c) => s + c.cantidad, 0);
-  const totalVendido   = cantidadContado + totalCredito;
-  const saldo          = totalLlevado - devolucion - totalVendido;
-  const formularioOk   = isVentaParcial 
+  const totalLlevado = salidaActual?.cantidad_salida ?? 0;
+  const totalCredito = creditosItems.reduce((s, c) => s + c.cantidad, 0);
+  const totalVendido = cantidadContado + totalCredito;
+  const saldo = totalLlevado - devolucion - totalVendido;
+  const formularioOk = isVentaParcial
     ? (totalVendido > 0 && totalVendido <= totalLlevado)
     : (saldo === 0 && (totalVendido > 0 || devolucion > 0));
 
@@ -101,13 +101,13 @@ export default function VentasView() {
     const base = user?.role === 'vendedor'
       ? historial.filter(h => h.vendedor === user.username)
       : historial;
-    
+
     // Unificar duplicados por liquidación (misma fecha, vendedor, producto y ruta)
     const unificados: any[] = [];
     base.forEach(item => {
       const key = `${item.fecha}-${item.vendedor}-${item.producto}-${item.ruta}`;
       const existente = unificados.find(u => `${u.fecha}-${u.vendedor}-${u.producto}-${u.ruta}` === key);
-      
+
       if (existente) {
         existente.cantidad_venta = (Number(existente.cantidad_venta) || 0) + (Number(item.cantidad_venta) || 0);
         existente.total_pesos = (Number(existente.total_pesos) || 0) + (Number(item.total_pesos) || 0);
@@ -131,7 +131,7 @@ export default function VentasView() {
     const nuevas: SalidaRuta[] = [];
     for (const item of formSalida.items) {
       const salida: SalidaRuta = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         fecha: new Date().toLocaleDateString('es-CO'),
         vendedor, ruta: formSalida.ruta, producto: item.producto,
         cantidad_salida: item.cantidad, estado: 'En Ruta',
@@ -171,7 +171,7 @@ export default function VentasView() {
   const registrarLiquidacion = async () => {
     if (!salidaActual || !formularioOk) return;
     setSaving(true);
-    
+
     try {
       const fecha = new Date().toLocaleDateString('es-CO');
 
@@ -206,7 +206,7 @@ export default function VentasView() {
         const montoPesos = cr.cantidad * precioUnitario;
         const liqCred = {
           ...base,
-          id: `LIQ-${Date.now()}-CR-${cr.clienteNombre.replace(/\s/g,'')}`,
+          id: `LIQ-${Date.now()}-CR-${cr.clienteNombre.replace(/\s/g, '')}`,
           tipo_pago: 'Crédito',
           cantidad_venta: cr.cantidad,
           total_pesos: montoPesos,
@@ -219,7 +219,7 @@ export default function VentasView() {
 
         // Registrar crédito en cartera (monto en PESOS, no en unidades)
         await registrarCredito({
-          id_credito: `CRD-${Date.now()}-${cr.clienteNombre.replace(/\s/g,'')}`,
+          id_credito: `CRD-${Date.now()}-${cr.clienteNombre.replace(/\s/g, '')}`,
           cliente: cr.clienteNombre,
           vendedor: salidaActual.vendedor,
           monto_deuda: montoPesos,             // ← PESOS REALES
@@ -299,7 +299,7 @@ export default function VentasView() {
 
       {/* Tabs */}
       <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl w-fit">
-        {[['salidas','Rutas Activas'],['historial','Historial']].map(([id, label]) => (
+        {[['salidas', 'Rutas Activas'], ['historial', 'Historial']].map(([id, label]) => (
           <button key={id} onClick={() => setActiveTab(id as any)}
             className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === id ? 'bg-white dark:bg-gray-700 text-gray-900 shadow-sm' : 'text-gray-400'}`}>
             {label}
@@ -378,7 +378,7 @@ export default function VentasView() {
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 uppercase font-black text-[9px] text-gray-400 tracking-[2px]">
                     <tr>
-                      {['Fecha','Vendedor','Producto','Cant. (UND)','Valor ($)'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
+                      {['Fecha', 'Vendedor', 'Producto', 'Cant. (UND)', 'Valor ($)'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -412,7 +412,7 @@ export default function VentasView() {
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 uppercase font-black text-[9px] text-gray-400 tracking-[2px]">
                     <tr>
-                      {['Fecha','Vendedor','Producto','Cliente','Cant. (UND)','Valor ($)'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
+                      {['Fecha', 'Vendedor', 'Producto', 'Cliente', 'Cant. (UND)', 'Valor ($)'].map(h => <th key={h} className="px-6 py-5">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -451,7 +451,7 @@ export default function VentasView() {
                 {user?.role === 'admin' && (
                   <div>
                     <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block">Vendedor</label>
-                    <select value={formSalida.vendedor} onChange={e => setFormSalida(p => ({...p, vendedor: e.target.value}))}
+                    <select value={formSalida.vendedor} onChange={e => setFormSalida(p => ({ ...p, vendedor: e.target.value }))}
                       className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-bold uppercase">
                       <option value="">-- Seleccionar --</option>
                       {VENDEDORES.map(v => <option key={v}>{v}</option>)}
@@ -460,7 +460,7 @@ export default function VentasView() {
                 )}
                 <div className={user?.role === 'admin' ? '' : 'md:col-span-2'}>
                   <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block">Zona / Ruta</label>
-                  <select value={formSalida.ruta} onChange={e => setFormSalida(p => ({...p, ruta: e.target.value}))}
+                  <select value={formSalida.ruta} onChange={e => setFormSalida(p => ({ ...p, ruta: e.target.value }))}
                     className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-bold uppercase">
                     <option value="">-- Destino --</option>
                     {rutas.map(r => <option key={r}>{r}</option>)}
@@ -471,20 +471,20 @@ export default function VentasView() {
               <div className="p-8 bg-brand-50/50 rounded-[35px] border border-brand-100 space-y-6">
                 <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">Añadir Productos</p>
                 <div className="grid grid-cols-2 gap-4">
-                  <select value={tempItem.producto} onChange={e => setTempItem(p => ({...p, producto: e.target.value}))}
+                  <select value={tempItem.producto} onChange={e => setTempItem(p => ({ ...p, producto: e.target.value }))}
                     className="p-4 bg-white rounded-2xl font-bold text-xs uppercase shadow-sm">
-                     <option value="">-- Producto --</option>
-                     {productosTerminados
-                       .filter(p => p.stock > 0)
-                       .map(p => <option key={p.id} value={p.nombre}>{p.nombre} ({p.stock} disponibles)</option>)}
-                     {productosTerminados.filter(p => p.stock === 0).map(p =>
-                       <option key={p.id} value={p.nombre} disabled>{p.nombre} (agotado)</option>
-                     )}
+                    <option value="">-- Producto --</option>
+                    {productosTerminados
+                      .filter(p => p.stock > 0)
+                      .map(p => <option key={p.id} value={p.nombre}>{p.nombre} ({p.stock} disponibles)</option>)}
+                    {productosTerminados.filter(p => p.stock === 0).map(p =>
+                      <option key={p.id} value={p.nombre} disabled>{p.nombre} (agotado)</option>
+                    )}
                   </select>
-                  <input type="number" placeholder="Cant" value={tempItem.cantidad || ''} onChange={e => setTempItem(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
+                  <input type="number" placeholder="Cant" value={tempItem.cantidad || ''} onChange={e => setTempItem(p => ({ ...p, cantidad: parseInt(e.target.value) || 0 }))}
                     className="p-4 bg-white rounded-2xl font-black text-2xl text-center text-brand-500 shadow-sm" />
                 </div>
-                <button onClick={() => { if(tempItem.producto && tempItem.cantidad > 0){ setFormSalida(p=>({...p, items:[...p.items, tempItem]})); setTempItem({producto:'',cantidad:0}); }}}
+                <button onClick={() => { if (tempItem.producto && tempItem.cantidad > 0) { setFormSalida(p => ({ ...p, items: [...p.items, tempItem] })); setTempItem({ producto: '', cantidad: 0 }); } }}
                   className="w-full bg-brand-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">
                   Cargar al Camión
                 </button>
@@ -500,7 +500,7 @@ export default function VentasView() {
                         <p className="text-[9px] text-gray-400 font-bold uppercase">{item.cantidad} unidades</p>
                       </div>
                     </div>
-                    <button onClick={() => setFormSalida(p=>({...p, items: p.items.filter((_,idx)=>idx!==i)}))} className="text-gray-300 hover:text-rose-500 transition-colors p-2">
+                    <button onClick={() => setFormSalida(p => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }))} className="text-gray-300 hover:text-rose-500 transition-colors p-2">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -540,32 +540,32 @@ export default function VentasView() {
               {/* Indicador de balance */}
               {!isVentaParcial && (
                 <div className={`p-5 rounded-3xl border-2 flex items-center justify-between ${saldo === 0 ? 'border-emerald-300 bg-emerald-50' : saldo > 0 ? 'border-amber-300 bg-amber-50' : 'border-rose-300 bg-rose-50'}`}>
-                <div className="space-y-1">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Balance: Llevados = Vendidos + Devueltos</p>
-                  <p className="font-black text-lg">
-                    <span className="text-brand-500">{totalLlevado}</span>
-                    <span className="text-gray-400 mx-2">=</span>
-                    <span className="text-emerald-600">{cantidadContado}</span>
-                    <span className="text-gray-400 mx-1">+</span>
-                    <span className="text-orange-500">{totalCredito}</span>
-                    <span className="text-gray-400 mx-1">+</span>
-                    <span className="text-brand-400">{devolucion}</span>
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Balance: Llevados = Vendidos + Devueltos</p>
+                    <p className="font-black text-lg">
+                      <span className="text-brand-500">{totalLlevado}</span>
+                      <span className="text-gray-400 mx-2">=</span>
+                      <span className="text-emerald-600">{cantidadContado}</span>
+                      <span className="text-gray-400 mx-1">+</span>
+                      <span className="text-orange-500">{totalCredito}</span>
+                      <span className="text-gray-400 mx-1">+</span>
+                      <span className="text-brand-400">{devolucion}</span>
+                    </p>
+                  </div>
+                  <div className={`text-2xl font-black italic ${saldo === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {saldo === 0 ? '✅ OK' : `⚠️ Faltan ${saldo}`}
+                  </div>
                 </div>
-                <div className={`text-2xl font-black italic ${saldo === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {saldo === 0 ? '✅ OK' : `⚠️ Faltan ${saldo}`}
-                </div>
-              </div>
               )}
 
               {/* Devoluciones */}
               {!isVentaParcial && (
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Unidades Devueltas / Mermas</label>
-                <input type="number" value={devolucion || ''} min={0} max={totalLlevado}
-                  onChange={e => setDevolucion(parseInt(e.target.value) || 0)}
-                  className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-brand-400 text-center" />
-              </div>
+                <div>
+                  <label className="text-[9px] font-black text-gray-400 uppercase mb-2 block tracking-widest">Unidades Devueltas / Mermas</label>
+                  <input type="number" value={devolucion || ''} min={0} max={totalLlevado}
+                    onChange={e => setDevolucion(parseInt(e.target.value) || 0)}
+                    className="w-full p-5 bg-gray-50 dark:bg-gray-800 rounded-3xl outline-none font-black text-3xl text-brand-400 text-center" />
+                </div>
               )}
 
               {/* Ventas de CONTADO */}
@@ -598,7 +598,7 @@ export default function VentasView() {
                         <p className="text-[9px] text-gray-400 font-bold uppercase">{cr.cantidad} unidades · Cobro: {cr.fecha_cobro || 'Sin fecha'}</p>
                       </div>
                     </div>
-                    <button onClick={() => setCreditosItems(p => p.filter((_,idx) => idx !== i))} className="text-gray-300 hover:text-rose-500 transition-colors p-2">
+                    <button onClick={() => setCreditosItems(p => p.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-rose-500 transition-colors p-2">
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -613,45 +613,45 @@ export default function VentasView() {
                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest bg-gray-100 px-3 py-1 rounded-full">
                       {isNewClient ? 'Nuevo Cliente' : 'Cliente Existente'}
                     </span>
-                    <button onClick={() => { setIsNewClient(!isNewClient); setNuevoCredito(p=>({...p, clienteNombre: ''})); }} 
-                       className="text-[10px] text-brand-500 font-bold underline cursor-pointer">
-                       {isNewClient ? 'Seleccionar uno existente' : '+ Crear Nuevo'}
+                    <button onClick={() => { setIsNewClient(!isNewClient); setNuevoCredito(p => ({ ...p, clienteNombre: '' })); }}
+                      className="text-[10px] text-brand-500 font-bold underline cursor-pointer">
+                      {isNewClient ? 'Seleccionar uno existente' : '+ Crear Nuevo'}
                     </button>
                   </div>
 
                   <div className="relative">
                     {!isNewClient ? (
-                       <select value={nuevoCredito.clienteNombre} 
-                         onChange={e => {
-                           const c = clientes.find(cli => cli.nombre === e.target.value);
-                           if (c) {
-                             setNuevoCredito(p => ({...p, clienteNombre: c.nombre, telefono: c.telefono || '', direccion: c.direccion || ''}));
-                           } else {
-                             setNuevoCredito(p => ({...p, clienteNombre: e.target.value}));
-                           }
-                         }}
-                         className="w-full bg-gray-50 rounded-2xl p-4 outline-none font-bold text-sm uppercase border border-gray-100 text-gray-700">
-                         <option value="">-- Seleccionar --</option>
-                         {clientes.map(c => <option key={c.id} value={c.nombre}>{c.nombre} · {c.ruta}</option>)}
-                       </select>
+                      <select value={nuevoCredito.clienteNombre}
+                        onChange={e => {
+                          const c = clientes.find(cli => cli.nombre === e.target.value);
+                          if (c) {
+                            setNuevoCredito(p => ({ ...p, clienteNombre: c.nombre, telefono: c.telefono || '', direccion: c.direccion || '' }));
+                          } else {
+                            setNuevoCredito(p => ({ ...p, clienteNombre: e.target.value }));
+                          }
+                        }}
+                        className="w-full bg-gray-50 rounded-2xl p-4 outline-none font-bold text-sm uppercase border border-gray-100 text-gray-700">
+                        <option value="">-- Seleccionar --</option>
+                        {clientes.map(c => <option key={c.id} value={c.nombre}>{c.nombre} · {c.ruta}</option>)}
+                      </select>
                     ) : (
-                       <input value={nuevoCredito.clienteNombre}
-                         onChange={e => setNuevoCredito(p => ({...p, clienteNombre: e.target.value}))}
-                         placeholder="EJ: SUPERMERCADO LA 14..."
-                         className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-sm uppercase" />
+                      <input value={nuevoCredito.clienteNombre}
+                        onChange={e => setNuevoCredito(p => ({ ...p, clienteNombre: e.target.value }))}
+                        placeholder="EJ: SUPERMERCADO LA 14..."
+                        className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-sm uppercase" />
                     )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <input value={nuevoCredito.telefono} onChange={e => setNuevoCredito(p=>({...p, telefono: e.target.value}))}
+                    <input value={nuevoCredito.telefono} onChange={e => setNuevoCredito(p => ({ ...p, telefono: e.target.value }))}
                       placeholder="Teléfono" className="p-4 bg-gray-50 rounded-2xl outline-none text-[10px] font-bold" />
-                    <input type="date" value={nuevoCredito.fecha_cobro} onChange={e => setNuevoCredito(p=>({...p, fecha_cobro: e.target.value}))}
+                    <input type="date" value={nuevoCredito.fecha_cobro} onChange={e => setNuevoCredito(p => ({ ...p, fecha_cobro: e.target.value }))}
                       className="p-4 bg-gray-50 rounded-2xl outline-none text-[10px] font-bold" />
                   </div>
-                  <input value={nuevoCredito.direccion} onChange={e => setNuevoCredito(p=>({...p, direccion: e.target.value}))}
+                  <input value={nuevoCredito.direccion} onChange={e => setNuevoCredito(p => ({ ...p, direccion: e.target.value }))}
                     placeholder="Dirección de cobro" className="w-full p-4 bg-gray-50 rounded-2xl outline-none text-[10px] font-bold" />
                   <div className="flex gap-3">
-                    <input type="number" value={nuevoCredito.cantidad || ''} onChange={e => setNuevoCredito(p=>({...p, cantidad: parseInt(e.target.value)||0}))}
+                    <input type="number" value={nuevoCredito.cantidad || ''} onChange={e => setNuevoCredito(p => ({ ...p, cantidad: parseInt(e.target.value) || 0 }))}
                       placeholder="Cant." className="w-28 p-4 bg-gray-50 rounded-2xl outline-none font-black text-xl text-center text-orange-600" />
                     <button onClick={agregarCreditoItem}
                       className="flex-1 bg-orange-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-600 transition-all active:scale-95 flex items-center justify-center gap-2">
