@@ -397,18 +397,22 @@ export default function FinanzasView() {
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Categoría</th>
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Descripción</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Método</th>
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
                         <th className="px-5 py-3"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {gastosFiltrados.length === 0 ? (
-                        <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">No hay gastos en este mes</td></tr>
+                        <tr><td colSpan={6} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">No hay gastos en este mes</td></tr>
                       ) : gastosFiltrados.map(g => (
                         <tr key={g.id} className="hover:bg-gray-50">
                           <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{g.fecha}</td>
                           <td className="px-5 py-3 text-xs font-bold text-brand-600">{g.categoria}</td>
                           <td className="px-5 py-3 text-xs">{g.descripcion}</td>
+                          <td className="px-5 py-3 text-xs">
+                            <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${g.metodo_pago === 'Efectivo' ? 'bg-emerald-100 text-emerald-700' : g.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{g.metodo_pago || 'Efectivo'}</span>
+                          </td>
                           <td className="px-5 py-3 font-black text-rose-600 text-right">{fmtCOP(g.monto)}</td>
                           <td className="px-5 py-3 text-right">
                             {user?.role === "admin" && (
