@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS prestamos ( id UUID PRIMARY KEY DEFAULT gen_random_uuid(), fecha TEXT NOT NULL, beneficiario TEXT NOT NULL, tipo TEXT NOT NULL, monto NUMERIC NOT NULL, estado TEXT DEFAULT 'Activo', descripcion TEXT, created_at TIMESTAMPTZ DEFAULT NOW() ); ALTER TABLE prestamos DISABLE ROW LEVEL SECURITY; 
