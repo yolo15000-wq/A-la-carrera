@@ -533,6 +533,69 @@ export default function FinanzasView() {
         </>
       )}
 
+      {/* =========================================================================
+          PESTAÑA 4: PRÉSTAMOS
+      ========================================================================= */}
+      {!loading && activeTab === "prestamos" && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold text-gray-800">Control de Préstamos</h3>
+            {user?.role === "admin" && (
+              <button onClick={() => setShowModal("prestamo")} className="flex items-center gap-2 bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-brand-700 shadow-md transition-transform active:scale-95">
+                <PlusCircle size={16} /> Nuevo Préstamo
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Beneficiario/Acreedor</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Descripción</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Tipo</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-center">Estado</th>
+                    <th className="px-5 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {prestamos.length === 0 ? (
+                    <tr><td colSpan={7} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">No hay préstamos registrados</td></tr>
+                  ) : prestamos.map(p => (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{p.fecha}</td>
+                      <td className="px-5 py-3 text-xs font-bold text-gray-800 uppercase">{p.beneficiario}</td>
+                      <td className="px-5 py-3 text-xs text-gray-500">{p.descripcion || '-'}</td>
+                      <td className="px-5 py-3">
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${p.tipo === 'Otorgado' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {p.tipo}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-black text-gray-800 text-right">{fmtCOP(p.monto)}</td>
+                      <td className="px-5 py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${p.estado === 'Activo' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {p.estado}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        {user?.role === "admin" && (
+                          <button onClick={() => eliminarRegistro("prestamos", p.id as any, setPrestamos)} className="text-gray-300 hover:text-rose-500">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modales ───────────────────────────────────────────────────────────── */}
       
       {/* Modal: Gasto Variable */}
