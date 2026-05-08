@@ -36,6 +36,16 @@ interface MovimientoCaja {
   creado_por: string;
 }
 
+interface Prestamo {
+  id?: string;
+  fecha: string;
+  beneficiario: string;
+  tipo: "Otorgado" | "Recibido";
+  monto: number;
+  estado: "Activo" | "Pagado";
+  descripcion: string;
+}
+
 const CATEGORIAS = [
   "Materia Prima",
   "Nómina Extra",
@@ -59,15 +69,16 @@ export default function FinanzasView() {
   const now = new Date();
   const [mesSeleccionado, setMesSeleccionado] = useState(now.getMonth());
   const [anioSeleccionado, setAnioSeleccionado] = useState(now.getFullYear());
-  const [activeTab, setActiveTab] = useState<"pnl" | "caja" | "fijos">("pnl");
+  const [activeTab, setActiveTab] = useState<"pnl" | "caja" | "fijos" | "prestamos">("pnl");
 
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [gastosFijos, setGastosFijos] = useState<GastoFijo[]>([]);
   const [movimientos, setMovimientos] = useState<MovimientoCaja[]>([]);
+  const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showModal, setShowModal] = useState<"gasto" | "movimiento" | "fijo" | null>(null);
+  const [showModal, setShowModal] = useState<"gasto" | "movimiento" | "fijo" | "prestamo" | null>(null);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
   
   const [ingresosBrutos, setIngresosBrutos] = useState(0);
@@ -96,6 +107,15 @@ export default function FinanzasView() {
     activo: true,
   });
 
+  const [formPrestamo, setFormPrestamo] = useState<Prestamo>({
+    fecha: new Date().toISOString().slice(0, 10),
+    beneficiario: "",
+    tipo: "Otorgado",
+    monto: 0,
+    estado: "Activo",
+    descripcion: "",
+  });
+
   // ── Carga de datos ────────────────────────────────────────────────────────
   useEffect(() => {
     loadData();
@@ -104,16 +124,18 @@ export default function FinanzasView() {
   async function loadData() {
     setLoading(true);
     try {
-      const [resGastos, resFijos, resCaja, resLiq] = await Promise.all([
+      const [resGastos, resFijos, resCaja, resPrest, resLiq] = await Promise.all([
         supabase.from("gastos").select("*").order("created_at", { ascending: false }),
         supabase.from("gastos_fijos").select("*").order("id", { ascending: true }),
         supabase.from("caja_banco").select("*").order("fecha", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("prestamos").select("*").order("created_at", { ascending: false }),
         supabase.from("liquidaciones").select("total_pesos, fecha")
       ]);
 
       if (resGastos.data) setGastos(resGastos.data);
       if (resFijos.data) setGastosFijos(resFijos.data);
       if (resCaja.data) setMovimientos(resCaja.data);
+      if (resPrest.data) setPrestamos(resPrest.data);
       
       if (resLiq.data) {
         // En una app real filtraríamos por mes, aquí lo simplificamos sumando lo del mes seleccionado
@@ -235,6 +257,33 @@ export default function FinanzasView() {
       showMsg("✅ Gasto fijo registrado");
       setShowModal(null);
       setFormFijo({ nombre: "", monto: 0, activo: true });
+    }
+    setSaving(false);
+  };
+
+  const guardarPrestamo = async () => {
+    if (!formPrestamo.beneficiario.trim() || formPrestamo.monto <= 0) return;
+    setSaving(true);
+    const { data, error } = await supabase.from("prestamos").insert([{ ...formPrestamo }]).select().single();
+    if (!error && data) {
+      setPrestamos(prev => [data, ...prev]);
+
+      // Modificar caja (Si otorgamos plata, sale de caja. Si recibimos, entra a caja).
+      const tipoCaja = formPrestamo.tipo === "Otorgado" ? "Egreso" : "Ingreso";
+      const { data: cajaData } = await supabase.from("caja_banco").insert([{
+          fecha: formPrestamo.fecha,
+          concepto: `Préstamo ${formPrestamo.tipo}: ${formPrestamo.beneficiario}`,
+          tipo: tipoCaja,
+          monto: formPrestamo.monto,
+          creado_por: user?.username ?? "Admin",
+          saldo_acum: 0
+      }]).select().single();
+
+      if (cajaData) setMovimientos(prev => [cajaData, ...prev]);
+
+      showMsg("✅ Préstamo registrado y caja actualizada");
+      setShowModal(null);
+      setFormPrestamo({ ...formPrestamo, beneficiario: "", descripcion: "", monto: 0 });
     }
     setSaving(false);
   };
@@ -581,6 +630,45 @@ export default function FinanzasView() {
             </div>
             <button onClick={guardarGastoFijo} disabled={saving || !formFijo.nombre || formFijo.monto <= 0} className="w-full py-4 bg-gray-900 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
               {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Crear Gasto Fijo"}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Modal: Prestamo */}
+      {showModal === "prestamo" && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-8 space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+              <h2 className="text-xl font-black uppercase italic text-gray-800">Registrar Préstamo</h2>
+              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[9px] font-black text-gray-400 uppercase">Fecha</label>
+                <input type="date" value={formPrestamo.fecha} onChange={e => setFormPrestamo({...formPrestamo, fecha: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-gray-400 uppercase">Tipo</label>
+                <select value={formPrestamo.tipo} onChange={e => setFormPrestamo({...formPrestamo, tipo: e.target.value as "Otorgado"|"Recibido"})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
+                  <option value="Otorgado">Otorgado (Salió plata)</option>
+                  <option value="Recibido">Recibido (Entró plata)</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-[9px] font-black text-gray-400 uppercase">Beneficiario / Acreedor</label>
+                <input type="text" value={formPrestamo.beneficiario} onChange={e => setFormPrestamo({...formPrestamo, beneficiario: e.target.value})} placeholder="A quién se le presta o quién nos presta" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[9px] font-black text-gray-400 uppercase">Descripción (Opcional)</label>
+                <input type="text" value={formPrestamo.descripcion} onChange={e => setFormPrestamo({...formPrestamo, descripcion: e.target.value})} placeholder="Motivo o detalle del préstamo" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[9px] font-black text-gray-400 uppercase">Monto</label>
+                <input type="number" value={formPrestamo.monto || ""} onChange={e => setFormPrestamo({...formPrestamo, monto: Number(e.target.value)})} className="w-full p-4 bg-gray-50 rounded-xl font-black text-2xl text-center text-brand-600 border border-gray-100" />
+              </div>
+            </div>
+            <button onClick={guardarPrestamo} disabled={saving || !formPrestamo.beneficiario || formPrestamo.monto <= 0} className="w-full py-4 bg-brand-500 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
+              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Registrar Préstamo"}
             </button>
           </div>
         </div>
