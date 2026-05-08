@@ -340,7 +340,8 @@ export default function FinanzasView() {
         {[
           { id: "pnl", label: "Estado de Resultados (P&L)", icon: Activity },
           { id: "caja", label: "Flujo y Caja Bancaria", icon: Wallet },
-          { id: "fijos", label: "Gastos Fijos", icon: Building }
+          { id: "fijos", label: "Gastos Fijos", icon: Building },
+          { id: "prestamos", label: "Préstamos", icon: DollarSign }
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-gray-700 text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
