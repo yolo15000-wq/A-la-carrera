@@ -49,7 +49,7 @@ const PRODUCTOS_TERMINADOS_INICIALES: ProductoTerminado[] = [
 
 interface InventarioContextType {
   insumos: InsumoBD[];
-  descontarInsumos: (ingredientes: RecetaLinea[], tandas: number) => void;
+  descontarInsumos: (ingredientes: RecetaLinea[], tandas: number) => Promise<void>;
   agregarInsumo: (codigo: string, cantidad: number) => void;
   eliminarInsumo: (codigo: string) => Promise<void>;
   descontarInsumoExtra: (nombreOcCodigo: string, cantidad: number) => void;
@@ -58,7 +58,7 @@ interface InventarioContextType {
   descontarProductoTerminado: (id: string, cantidad: number) => void;
   eliminarProductoTerminado: (id: string) => Promise<void>;
   creditos: Credito[];
-  registrarCredito: (nuevo: Credito) => void;
+  registrarCredito: (nuevo: Credito) => Promise<void>;
   marcarPagoCredito: (id_credito: string | number) => void;
   loading: boolean;
   pedidos: Pedido[];
@@ -68,7 +68,7 @@ interface InventarioContextType {
 
 export const InventarioContext = createContext<InventarioContextType>({
   insumos: MATERIA_PRIMA_INICIAL,
-  descontarInsumos: () => {},
+  descontarInsumos: async () => {},
   agregarInsumo: () => {},
   eliminarInsumo: async () => {},
   descontarInsumoExtra: () => {},
@@ -77,7 +77,7 @@ export const InventarioContext = createContext<InventarioContextType>({
   descontarProductoTerminado: () => {},
   eliminarProductoTerminado: async () => {},
   creditos: [],
-  registrarCredito: () => {},
+  registrarCredito: async () => {},
   marcarPagoCredito: () => {},
   loading: true,
   pedidos: [],
@@ -153,23 +153,42 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     loadData();
   }, []);
 
-  const descontarInsumos = useCallback((ingredientes: RecetaLinea[], tandas: number) => {
-    setInsumos(prev => prev.map(insumo => {
-        // Buscar coincidencia exacta primero, luego parcial
-        const ing = ingredientes.find(i =>
-          i.insumo.toLowerCase() === insumo.insumo.toLowerCase()
-        ) ?? ingredientes.find(i =>
-          insumo.insumo.toLowerCase().includes(i.insumo.toLowerCase()) ||
-          i.insumo.toLowerCase().includes(insumo.insumo.toLowerCase())
+  const descontarInsumos = useCallback(async (ingredientes: RecetaLinea[], tandas: number) => {
+    // 1. Calcular nuevos valores localmente primero
+    const nuevosInsumos = [...insumos];
+    const actualizaciones: Promise<any>[] = [];
+
+    for (const ing of ingredientes) {
+      const cantidadARestar = (Number(ing.cantidad_gr) || 0) * tandas;
+      if (cantidadARestar <= 0) continue;
+
+      // Buscar el insumo correspondiente
+      const idx = nuevosInsumos.findIndex(ins => 
+        ins.insumo.toLowerCase() === ing.insumo.toLowerCase() ||
+        ins.insumo.toLowerCase().includes(ing.insumo.toLowerCase()) ||
+        ing.insumo.toLowerCase().includes(ins.insumo.toLowerCase())
+      );
+
+      if (idx !== -1) {
+        const insumo = nuevosInsumos[idx];
+        const nuevaExistencia = Math.max(0, insumo.existencia - cantidadARestar);
+        
+        // Actualizar objeto local
+        nuevosInsumos[idx] = { ...insumo, existencia: nuevaExistencia };
+        
+        // Preparar actualización en DB
+        actualizaciones.push(
+          googleSheetsService.updateRow('Inventario', 'codigo', insumo.codigo, { existencia: nuevaExistencia })
         );
-        if (!ing) return insumo;
-        const cantidad = (ing.cantidad_gr ?? 0) * tandas;
-        if (cantidad <= 0) return insumo;
-        const nuevaExistencia = Math.max(0, insumo.existencia - cantidad);
-        googleSheetsService.updateRow('Inventario', 'codigo', insumo.codigo, { existencia: nuevaExistencia });
-        return { ...insumo, existencia: nuevaExistencia };
-    }));
-  }, []);
+      }
+    }
+
+    // 2. Aplicar cambios locales
+    setInsumos(nuevosInsumos);
+
+    // 3. Ejecutar todas las actualizaciones en DB
+    await Promise.all(actualizaciones);
+  }, [insumos]);
 
   const agregarInsumo = useCallback((codigo: string, cantidad: number) => {
     setInsumos(prev => prev.map(i => {
@@ -285,9 +304,12 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const registrarCredito = useCallback((nuevo: Credito) => {
+  const registrarCredito = useCallback(async (nuevo: Credito) => {
     setCreditos(prev => [nuevo, ...prev]);
-    googleSheetsService.appendRow('Cartera', nuevo).catch(err => console.error("Error sync Cartera:", err));
+    return googleSheetsService.appendRow('Cartera', nuevo).catch(err => {
+      console.error("Error sync Cartera:", err);
+      throw err;
+    });
   }, []);
 
   const marcarPagoCredito = useCallback(async (id_credito: string | number) => {
