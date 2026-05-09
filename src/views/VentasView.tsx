@@ -9,6 +9,7 @@ import { useClientes } from "../context/ClientesContext";
 import { googleSheetsService } from "../services/googleSheetsService";
 import { useAuth } from "../context/AuthContext";
 import { useCatalogos } from "../context/CatalogosContext";
+import { supabase } from "../lib/supabase";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 interface SalidaRuta {
@@ -281,9 +282,9 @@ export default function VentasView() {
       setSalidaActual(null);
       setMensajeExito(`✅ Liquidación registrada — ${cantidadContado} contado · ${totalCredito} crédito · ${devolucion} devueltos`);
       setTimeout(() => setMensajeExito(null), 5000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('⚠️ Hubo un error inesperado al registrar la liquidación.');
+      alert(`⚠️ Error al registrar la liquidación: ${err.message || 'Error de conexión o permisos'}`);
     } finally {
       setSaving(false);
     }

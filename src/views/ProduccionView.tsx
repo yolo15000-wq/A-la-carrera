@@ -33,7 +33,7 @@ export default function ProduccionView() {
 
   // Modal finalizar (uno a la vez)
   const [batchFinalizando, setBatchFinalizando] = useState<LoteBD | null>(null);
-  const [productosFinales, setProductosFinales] = useState<{producto: string, cantidad: number, bolsas: string[]}[]>([]);
+  const [productosFinales, setProductosFinales] = useState<{ producto: string, cantidad: number, bolsas: string[] }[]>([]);
   const [currentProd, setCurrentProd] = useState({ producto: '', cantidad: 0 });
   const [currentBolsas, setCurrentBolsas] = useState<string[]>([]);
   const [tempBolsa, setTempBolsa] = useState('');
@@ -70,7 +70,7 @@ export default function ProduccionView() {
     try {
       const now = new Date();
       const pad = (n: number) => n.toString().padStart(2, '0');
-      const fechaStr = `${pad(now.getDate())}${pad(now.getMonth()+1)}${now.getFullYear().toString().slice(2)}`;
+      const fechaStr = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear().toString().slice(2)}`;
       const productoStr = String(form.producto || '').trim();
       const prefix = productoStr.length >= 3
         ? productoStr.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')
@@ -127,8 +127,8 @@ export default function ProduccionView() {
     const fin = new Date();
     const totalUnidades = productosFinales.reduce((acc, curr) => acc + curr.cantidad, 0);
 
-    const nombresProductos = productosFinales.length === 1 
-      ? productosFinales[0].producto 
+    const nombresProductos = productosFinales.length === 1
+      ? productosFinales[0].producto
       : productosFinales.map(p => `${p.producto} (${p.cantidad})`).join(' + ');
 
     const updates = {
@@ -284,7 +284,7 @@ export default function ProduccionView() {
               <table className="w-full text-left">
                 <thead className="bg-gray-50 dark:bg-gray-800 text-[9px] font-black text-gray-400 uppercase tracking-[2px]">
                   <tr>
-                    {["Lote","Fecha","Producto","Operario","Tandas","Unidades","Duración","Nota","Estado"].map(h => (
+                    {["Lote", "Fecha", "Producto", "Operario", "Tandas", "Unidades", "Duración", "Nota", "Estado"].map(h => (
                       <th key={h} className="px-5 py-4">{h}</th>
                     ))}
                   </tr>
@@ -405,7 +405,7 @@ export default function ProduccionView() {
 
                   <div>
                     <label className="text-[10px] font-black text-gray-500 uppercase mb-1 block tracking-widest">1 · Producto</label>
-                    <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({...p, producto: e.target.value}))}
+                    <select value={currentProd.producto} onChange={e => setCurrentProd(p => ({ ...p, producto: e.target.value }))}
                       className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-xs uppercase appearance-none border border-gray-200 dark:border-gray-700 focus:border-brand-400">
                       <option value="">-- Seleccionar --</option>
                       {products.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
@@ -443,7 +443,7 @@ export default function ProduccionView() {
                   <div>
                     <label className="text-[10px] font-black text-gray-500 uppercase mb-1 block tracking-widest">3 · Cantidad (und)</label>
                     <input type="number" value={currentProd.cantidad || ''}
-                      onChange={e => setCurrentProd(p => ({...p, cantidad: parseInt(e.target.value) || 0}))}
+                      onChange={e => setCurrentProd(p => ({ ...p, cantidad: parseInt(e.target.value) || 0 }))}
                       placeholder="0" min={1}
                       className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-black text-3xl text-center text-brand-500 border border-gray-200 dark:border-gray-700 focus:border-brand-400" />
                   </div>
@@ -455,17 +455,17 @@ export default function ProduccionView() {
                 </div>
               </div>
 
-                {/* Nota del operario */}
-                <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">📝 Nota del Operario (Opcional)</label>
-                  <textarea
-                    value={notaLote}
-                    onChange={e => setNotaLote(e.target.value)}
-                    rows={3}
-                    placeholder="Ej: Se ajustó sal en la segunda tanda, temperatura alta al inicio..."
-                    className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-medium text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 focus:border-brand-400 resize-none"
-                  />
-                </div>
+              {/* Nota del operario */}
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block tracking-widest">📝 Nota del Operario (Opcional)</label>
+                <textarea
+                  value={notaLote}
+                  onChange={e => setNotaLote(e.target.value)}
+                  rows={3}
+                  placeholder="Ej: Se ajustó sal en la segunda tanda, temperatura alta al inicio..."
+                  className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3 outline-none font-medium text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 focus:border-brand-400 resize-none"
+                />
+              </div>
 
               <div className="flex gap-3">
                 <button onClick={() => setBatchFinalizando(null)} className="flex-1 text-gray-400 font-bold uppercase text-[10px] py-3">Cancelar</button>
