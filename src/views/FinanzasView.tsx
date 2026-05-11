@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useContext } from "react";
 import {
   TrendingUp, TrendingDown, DollarSign, PlusCircle, X,
   Loader2, Trash2, BarChart3, AlertTriangle, CheckCircle2,
-  ChevronDown, Building, Wallet, Activity
+  ChevronDown, Building, Wallet, Activity, Landmark, Banknote, Filter
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { InventarioContext } from "../context/InventarioContext";
@@ -34,6 +34,7 @@ interface MovimientoCaja {
   monto: number;
   saldo_acum?: number;
   creado_por: string;
+  cuenta?: "Efectivo" | "Banco";
 }
 
 interface Prestamo {
@@ -99,7 +100,10 @@ export default function FinanzasView() {
     tipo: "Ingreso",
     monto: 0,
     creado_por: user?.username ?? "Admin",
+    cuenta: "Efectivo",
   });
+
+  const [filtroCuenta, setFiltroCuenta] = useState<"todos" | "Efectivo" | "Banco">("todos");
 
   const [formFijo, setFormFijo] = useState<GastoFijo>({
     nombre: "",
@@ -195,10 +199,25 @@ export default function FinanzasView() {
   // COGS aproximado (si tuviéramos costo real por producto lo sumaríamos aquí, por ahora lo asumimos dentro de materia prima/gastos variables)
   const utilidadNeta = ingresosTotales - totalGastosVariables - totalGastosFijosMes;
 
-  // Saldo Bancario
-  const saldoCaja = useMemo(() => {
-    return movimientos.reduce((acc, m) => m.tipo === "Ingreso" ? acc + Number(m.monto) : acc - Number(m.monto), 0);
+  // Saldos separados
+  const saldoEfectivo = useMemo(() => {
+    return movimientos
+      .filter(m => (m.cuenta || 'Efectivo') === 'Efectivo')
+      .reduce((acc, m) => m.tipo === 'Ingreso' ? acc + Number(m.monto) : acc - Number(m.monto), 0);
   }, [movimientos]);
+
+  const saldoBanco = useMemo(() => {
+    return movimientos
+      .filter(m => (m.cuenta) === 'Banco')
+      .reduce((acc, m) => m.tipo === 'Ingreso' ? acc + Number(m.monto) : acc - Number(m.monto), 0);
+  }, [movimientos]);
+
+  const saldoCaja = saldoEfectivo + saldoBanco;
+
+  const movimientosFiltrados = useMemo(() => {
+    if (filtroCuenta === 'todos') return movimientos;
+    return movimientos.filter(m => (m.cuenta || 'Efectivo') === filtroCuenta);
+  }, [movimientos, filtroCuenta]);
 
   // ── Guardar Datos ─────────────────────────────────────────────────────────
   const showMsg = (msg: string) => {
@@ -237,11 +256,13 @@ export default function FinanzasView() {
   const guardarMovimiento = async () => {
     if (!formMovimiento.concepto.trim() || formMovimiento.monto <= 0) return;
     setSaving(true);
-    const nuevoSaldo = formMovimiento.tipo === "Ingreso" ? saldoCaja + formMovimiento.monto : saldoCaja - formMovimiento.monto;
-    const { data, error } = await supabase.from("caja_banco").insert([{ ...formMovimiento, saldo_acum: nuevoSaldo }]).select().single();
+    const saldoRef = formMovimiento.cuenta === 'Banco' ? saldoBanco : saldoEfectivo;
+    const nuevoSaldo = formMovimiento.tipo === "Ingreso" ? saldoRef + formMovimiento.monto : saldoRef - formMovimiento.monto;
+    const payload = { ...formMovimiento, saldo_acum: nuevoSaldo };
+    const { data, error } = await supabase.from("caja_banco").insert([payload]).select().single();
     if (!error && data) {
       setMovimientos(prev => [data, ...prev]);
-      showMsg("✅ Movimiento de caja registrado");
+      showMsg(`✅ Movimiento registrado en ${formMovimiento.cuenta}`);
       setShowModal(null);
       setFormMovimiento({ ...formMovimiento, concepto: "", monto: 0 });
     }
@@ -436,21 +457,52 @@ export default function FinanzasView() {
           ========================================================================= */}
           {activeTab === "caja" && (
             <div className="space-y-6">
-              <div className="bg-gradient-to-r from-brand-600 to-purple-600 p-8 rounded-[30px] shadow-xl text-white flex flex-col md:flex-row justify-between items-center">
-                <div>
-                  <p className="text-brand-100 font-black uppercase tracking-widest text-xs mb-1">Saldo Total en Caja / Banco</p>
-                  <h1 className="text-5xl font-black italic tracking-tighter">{fmtCOP(saldoCaja)}</h1>
+              {/* Tarjetas de saldo: Efectivo, Banco, Total */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 rounded-[24px] shadow-xl text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Banknote size={18} className="text-emerald-200" />
+                    <p className="text-emerald-100 font-black uppercase tracking-widest text-[10px]">Efectivo en Caja</p>
+                  </div>
+                  <h2 className="text-3xl font-black italic tracking-tighter">{fmtCOP(saldoEfectivo)}</h2>
                 </div>
-                {user?.role === "admin" && (
-                  <button onClick={() => setShowModal("movimiento")} className="mt-4 md:mt-0 flex items-center gap-2 bg-white text-brand-600 px-6 py-3 rounded-2xl font-black uppercase text-xs hover:bg-gray-50 shadow-lg transition-transform active:scale-95">
-                    <PlusCircle size={16} /> Nuevo Movimiento
-                  </button>
-                )}
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-700 p-6 rounded-[24px] shadow-xl text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Landmark size={18} className="text-blue-200" />
+                    <p className="text-blue-100 font-black uppercase tracking-widest text-[10px]">Cuenta Bancaria</p>
+                  </div>
+                  <h2 className="text-3xl font-black italic tracking-tighter">{fmtCOP(saldoBanco)}</h2>
+                </div>
+                <div className="bg-gradient-to-br from-brand-500 to-purple-700 p-6 rounded-[24px] shadow-xl text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wallet size={18} className="text-purple-200" />
+                    <p className="text-purple-100 font-black uppercase tracking-widest text-[10px]">Total Disponible</p>
+                  </div>
+                  <h2 className="text-3xl font-black italic tracking-tighter">{fmtCOP(saldoCaja)}</h2>
+                </div>
               </div>
 
+              {/* Botón nuevo movimiento */}
+              {user?.role === "admin" && (
+                <div className="flex justify-end">
+                  <button onClick={() => setShowModal("movimiento")} className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs hover:bg-black shadow-lg transition-transform active:scale-95">
+                    <PlusCircle size={16} /> Nuevo Movimiento
+                  </button>
+                </div>
+              )}
+
+              {/* Filtro por cuenta */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-5 border-b bg-gray-50">
+                <div className="p-5 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                   <h3 className="font-black uppercase text-sm text-gray-700">Historial de Movimientos</h3>
+                  <div className="flex bg-gray-200 p-1 rounded-xl">
+                    {(["todos", "Efectivo", "Banco"] as const).map(f => (
+                      <button key={f} onClick={() => setFiltroCuenta(f)}
+                        className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filtroCuenta === f ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}>
+                        {f === 'todos' ? 'Todos' : f}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
@@ -458,19 +510,24 @@ export default function FinanzasView() {
                       <tr>
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Concepto</th>
+                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Cuenta</th>
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Tipo</th>
                         <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Saldo Acum</th>
                         <th className="px-5 py-3"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {movimientos.length === 0 ? (
+                      {movimientosFiltrados.length === 0 ? (
                         <tr><td colSpan={6} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">Sin movimientos registrados</td></tr>
-                      ) : movimientos.map(m => (
+                      ) : movimientosFiltrados.map(m => (
                         <tr key={m.id} className="hover:bg-gray-50">
                           <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{m.fecha}</td>
                           <td className="px-5 py-3 font-bold text-gray-800 text-xs">{m.concepto}</td>
+                          <td className="px-5 py-3">
+                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${(m.cuenta || 'Efectivo') === 'Banco' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {(m.cuenta || 'Efectivo') === 'Banco' ? '🏦 Banco' : '💵 Efectivo'}
+                            </span>
+                          </td>
                           <td className="px-5 py-3">
                             <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.tipo === 'Ingreso' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                               {m.tipo}
@@ -479,7 +536,6 @@ export default function FinanzasView() {
                           <td className={`px-5 py-3 font-black text-right ${m.tipo === 'Ingreso' ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {m.tipo === 'Ingreso' ? '+' : '-'}{fmtCOP(m.monto)}
                           </td>
-                          <td className="px-5 py-3 font-black text-gray-600 text-right">{fmtCOP(m.saldo_acum || 0)}</td>
                           <td className="px-5 py-3 text-right">
                             {user?.role === "admin" && (
                               <button onClick={() => eliminarRegistro("caja_banco", m.id!, setMovimientos)} className="text-gray-300 hover:text-rose-500">
@@ -663,6 +719,22 @@ export default function FinanzasView() {
                   <option value="Ingreso">Entrada (+)</option>
                   <option value="Egreso">Salida (-)</option>
                 </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-[9px] font-black text-gray-400 uppercase">Cuenta Destino</label>
+                <div className="flex gap-2 mt-1">
+                  {(["Efectivo", "Banco"] as const).map(c => (
+                    <button key={c} type="button" onClick={() => setFormMovimiento({...formMovimiento, cuenta: c})}
+                      className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl font-black text-xs uppercase border-2 transition-all ${
+                        formMovimiento.cuenta === c
+                          ? c === 'Banco' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : 'border-gray-200 bg-gray-50 text-gray-400'
+                      }`}>
+                      {c === 'Banco' ? <Landmark size={16} /> : <Banknote size={16} />}
+                      {c === 'Banco' ? '🏦 Banco' : '💵 Efectivo'}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="col-span-2">
                 <label className="text-[9px] font-black text-gray-400 uppercase">Concepto</label>
