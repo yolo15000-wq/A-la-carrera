@@ -232,21 +232,25 @@ export default function FinanzasView() {
     if (!error && data) {
       setGastos(prev => [data, ...prev]);
       
-      // Descontar automáticamente de la caja
+      // Determinar cuenta: Efectivo o Banco
+      const cuentaDestino = formGasto.metodo_pago === 'Transferencia' || formGasto.metodo_pago === 'Tarjeta' ? 'Banco' : 'Efectivo';
+
+      // Descontar automáticamente de la caja/banco
       const { data: cajaData } = await supabase.from('caja_banco').insert([{
           fecha: formGasto.fecha,
           concepto: `Pago Gasto: ${formGasto.categoria} - ${formGasto.descripcion}`,
           tipo: 'Egreso',
           monto: formGasto.monto,
-          creado_por: formGasto.vendedor,
-          saldo_acum: 0
+          creado_por: user?.username ?? 'Admin',
+          saldo_acum: 0,
+          cuenta: cuentaDestino
       }]).select().single();
       
       if (cajaData) {
           setMovimientos(prev => [cajaData, ...prev]);
       }
 
-      showMsg("✅ Gasto registrado y descontado de caja");
+      showMsg(`✅ Gasto registrado y descontado de ${cuentaDestino}`);
       setShowModal(null);
       setFormGasto({ ...formGasto, descripcion: "", monto: 0 });
     }
@@ -687,10 +691,19 @@ export default function FinanzasView() {
                 <input type="number" value={formGasto.monto || ""} onChange={e => setFormGasto({...formGasto, monto: Number(e.target.value)})} className="w-full p-3 bg-gray-50 rounded-xl font-black text-rose-600 border border-gray-100" />
               </div>
               <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Método Pago</label>
-                <select value={formGasto.metodo_pago} onChange={e => setFormGasto({...formGasto, metodo_pago: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
-                  {METODOS_PAGO.map(m => <option key={m}>{m}</option>)}
-                </select>
+                <label className="text-[9px] font-black text-gray-400 uppercase">Sale de</label>
+                <div className="flex gap-2 mt-1">
+                  {([{val: 'Efectivo', label: '💵 Efectivo'}, {val: 'Transferencia', label: '🏦 Banco'}] as const).map(opt => (
+                    <button key={opt.val} type="button" onClick={() => setFormGasto({...formGasto, metodo_pago: opt.val})}
+                      className={`flex-1 p-3 rounded-xl font-black text-xs uppercase border-2 transition-all ${
+                        (formGasto.metodo_pago === opt.val || (opt.val === 'Transferencia' && formGasto.metodo_pago === 'Tarjeta'))
+                          ? opt.val === 'Transferencia' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : 'border-gray-200 bg-gray-50 text-gray-400'
+                      }`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <button onClick={guardarGasto} disabled={saving || !formGasto.descripcion || formGasto.monto <= 0} className="w-full py-4 bg-brand-500 text-white rounded-xl font-black uppercase disabled:bg-gray-200">

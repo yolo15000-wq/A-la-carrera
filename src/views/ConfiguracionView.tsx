@@ -1,16 +1,18 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Plus, Trash2, MapPin, Package, BookOpen, ChevronRight, CheckCircle, Loader2 } from "lucide-react";
 import { useCatalogos } from "../context/CatalogosContext";
-import { MATERIA_PRIMA_INICIAL } from "../data/datos";
+import { useContext } from "react";
+import { InventarioContext } from "../context/InventarioContext";
 
 // Definido localmente para evitar problemas con el bundler de producción
 interface Ingredient { nombre: string; cant: number; tipo: 'grams' | 'units'; }
 
-// Lista de insumos del sistema
-const INSUMOS_CONOCIDOS = MATERIA_PRIMA_INICIAL.map(i => i.insumo);
+
 
 export default function ConfiguracionView() {
   const { recipes, addRecipe, rutas, addRoute, products } = useCatalogos();
+  const { insumos } = useContext(InventarioContext);
+  const INSUMOS_CONOCIDOS = insumos.map(i => i.insumo);
   const [activeTab, setActiveTab] = useState<'recetas' | 'rutas' | 'productos'>('recetas');
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
