@@ -62,7 +62,7 @@ export const App = () => {
 
 const MainContent = () => {
   const { user, logout, isLoading } = useAuth();
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
   const [selected, setSelected] = useState("Inicio");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

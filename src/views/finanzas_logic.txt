@@ -1,0 +1,383 @@
+import { useState, useEffect, useMemo, useContext } from "react";
+import {
+  TrendingUp, TrendingDown, DollarSign, PlusCircle, X,
+  Loader2, Trash2, BarChart3, AlertTriangle, CheckCircle2,
+  ChevronDown, Building, Wallet, Activity, Landmark, Banknote, Filter
+} from "lucide-react";
+import { supabase } from "../lib/supabase";
+import { InventarioContext } from "../context/InventarioContext";
+import { useAuth } from "../context/AuthContext";
+
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+interface Gasto {
+  id?: number;
+  fecha: string;
+  categoria: string;
+  descripcion: string;
+  monto: number;
+  metodo_pago: string;
+  creado_por: string;
+}
+
+interface GastoFijo {
+  id?: number;
+  nombre: string;
+  monto: number;
+  activo: boolean;
+}
+
+interface MovimientoCaja {
+  id?: number;
+  fecha: string;
+  concepto: string;
+  tipo: "Ingreso" | "Egreso";
+  monto: number;
+  saldo_acum?: number;
+  creado_por: string;
+  cuenta?: "Efectivo" | "Banco";
+}
+
+interface Prestamo {
+  id?: string;
+  fecha: string;
+  beneficiario: string;
+  tipo: "Otorgado" | "Recibido";
+  monto: number;
+  estado: "Activo" | "Pagado";
+  descripcion: string;
+}
+
+const CATEGORIAS = [
+  "Materia Prima",
+  "Nómina Extra",
+  "Mantenimiento",
+  "Transporte",
+  "Otros",
+];
+
+const METODOS_PAGO = ["Efectivo", "Transferencia", "Tarjeta"];
+
+const MESES = [
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
+];
+
+// ── Componente principal ───────────────────────────────────────────────────────
+export default function FinanzasView() {
+  const { user } = useAuth();
+  const { creditos } = useContext(InventarioContext);
+
+  const now = new Date();
+  const [mesSeleccionado, setMesSeleccionado] = useState(now.getMonth());
+  const [anioSeleccionado, setAnioSeleccionado] = useState(now.getFullYear());
+  const [activeTab, setActiveTab] = useState<"pnl" | "caja" | "fijos" | "prestamos" | "cierre">("pnl");
+
+  const [gastos, setGastos] = useState<Gasto[]>([]);
+  const [gastosFijos, setGastosFijos] = useState<GastoFijo[]>([]);
+  const [movimientos, setMovimientos] = useState<MovimientoCaja[]>([]);
+  const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
+  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showModal, setShowModal] = useState<"gasto" | "movimiento" | "fijo" | "prestamo" | null>(null);
+  const [mensajeExito, setMensajeExito] = useState<string | null>(null);
+  
+  const [ingresosBrutos, setIngresosBrutos] = useState(0);
+  const [cogs, setCogs] = useState(0); // FASE 5: Costo de Ventas real
+  const [cierres, setCierres] = useState<any[]>([]); // FASE 7: historial de cierres
+  const [savingCierre, setSavingCierre] = useState(false);
+
+  // Forms
+  const [formGasto, setFormGasto] = useState<Gasto>({
+    fecha: new Date().toISOString().slice(0, 10),
+    categoria: CATEGORIAS[0],
+    descripcion: "",
+    monto: 0,
+    metodo_pago: "Efectivo",
+    creado_por: user?.username ?? "Admin",
+  });
+  
+  const [formMovimiento, setFormMovimiento] = useState<MovimientoCaja>({
+    fecha: new Date().toISOString().slice(0, 10),
+    concepto: "",
+    tipo: "Ingreso",
+    monto: 0,
+    creado_por: user?.username ?? "Admin",
+    cuenta: "Efectivo",
+  });
+
+  const [filtroCuenta, setFiltroCuenta] = useState<"todos" | "Efectivo" | "Banco">("todos");
+
+  const [formFijo, setFormFijo] = useState<GastoFijo>({
+    nombre: "",
+    monto: 0,
+    activo: true,
+  });
+
+  const [formPrestamo, setFormPrestamo] = useState<Prestamo>({
+    fecha: new Date().toISOString().slice(0, 10),
+    beneficiario: "",
+    tipo: "Otorgado",
+    monto: 0,
+    estado: "Activo",
+    descripcion: "",
+  });
+
+  // ── Carga de datos ────────────────────────────────────────────────────────
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [resGastos, resFijos, resCaja, resPrest, resLiq] = await Promise.all([
+        supabase.from("gastos").select("*").order("created_at", { ascending: false }),
+        supabase.from("gastos_fijos").select("*").order("id", { ascending: true }),
+        supabase.from("caja_banco").select("*").order("fecha", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("prestamos").select("*").order("created_at", { ascending: false }),
+        supabase.from("liquidaciones").select("total_pesos, fecha")
+      ]);
+
+      if (resGastos.data) setGastos(resGastos.data);
+      if (resFijos.data) setGastosFijos(resFijos.data);
+      if (resCaja.data) setMovimientos(resCaja.data);
+      if (resPrest.data) setPrestamos(resPrest.data);
+
+      // FASE 7: cargar cierres mensuales
+      const { data: cierresData } = await supabase
+        .from('cierres_mensuales')
+        .select('*')
+        .order('anio', { ascending: false })
+        .order('mes', { ascending: false });
+      if (cierresData) setCierres(cierresData);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }
+  
+  const [totalContado, setTotalContado] = useState(0);
+  const [totalCredito, setTotalCredito] = useState(0);
+
+  // Carga de ingresos brutos mes actual (Liquidaciones)
+  useEffect(() => {
+    async function fetchIngresos() {
+      const { data } = await supabase.from("liquidaciones").select("total_pesos, fecha, tipo_pago");
+      if (data) {
+        const liquidacionesMes = data.filter((row: any) => {
+          if (!row.fecha) return false;
+          const [d, m, y] = row.fecha.split("/").map(Number);
+          if (m && y) return m - 1 === mesSeleccionado && y === anioSeleccionado;
+          return false;
+        });
+        
+        const contado = liquidacionesMes
+          .filter((r: any) => r.tipo_pago === 'Contado')
+          .reduce((acc: number, row: any) => acc + (Number(row.total_pesos) || 0), 0);
+          
+        const credito = liquidacionesMes
+          .filter((r: any) => r.tipo_pago === 'Crédito')
+          .reduce((acc: number, row: any) => acc + (Number(row.total_pesos) || 0), 0);
+
+        // FASE 5: Calcular COGS = sum(costo_unitario_produccion * cantidad_venta)
+        const cogsCalc = liquidacionesMes
+          .reduce((acc: number, row: any) => {
+            const costo = Number(row.costo_unitario_produccion) || 0;
+            const cant = Number(row.cantidad_venta) || 0;
+            return acc + (costo * cant);
+          }, 0);
+
+        setTotalContado(contado);
+        setTotalCredito(credito);
+        setIngresosBrutos(contado + credito);
+        setCogs(cogsCalc);
+      }
+    }
+    fetchIngresos();
+  }, [mesSeleccionado, anioSeleccionado]);
+
+  // ── Cálculos P&L ──────────────────────────────────────────────────────────
+  const gastosFiltrados = useMemo(() => {
+    return gastos.filter(g => {
+      const d = new Date(g.fecha);
+      return d.getMonth() === mesSeleccionado && d.getFullYear() === anioSeleccionado;
+    });
+  }, [gastos, mesSeleccionado, anioSeleccionado]);
+
+  const totalGastosVariables = useMemo(() => gastosFiltrados.reduce((acc, g) => acc + (Number(g.monto) || 0), 0), [gastosFiltrados]);
+  
+  const totalGastosFijosMes = useMemo(() => gastosFijos.filter(g => g.activo).reduce((acc, g) => acc + (Number(g.monto) || 0), 0), [gastosFijos]);
+
+  const ingresosTotales = ingresosBrutos;
+  
+  // FASE 5: P&L profesional con COGS
+  const utilidadBruta = ingresosTotales - cogs;
+  const margenBruto = ingresosTotales > 0 ? Math.round((utilidadBruta / ingresosTotales) * 100) : 0;
+  const totalGastos = totalGastosVariables + totalGastosFijosMes;
+  const utilidadNeta = utilidadBruta - totalGastos;
+  const margenNeto = ingresosTotales > 0 ? Math.round((utilidadNeta / ingresosTotales) * 100) : 0;
+
+  // FASE 7: Función cerrar mes
+  const cerrarMes = async () => {
+    const mesId = `CIERRE-${anioSeleccionado}-${String(mesSeleccionado + 1).padStart(2, '0')}`;
+    if (cierres.some(c => c.id === mesId)) {
+      alert('Este mes ya tiene un cierre registrado.');
+      return;
+    }
+    if (!confirm(`¿Cerrar el mes de ${MESES[mesSeleccionado]} ${anioSeleccionado}? Esta acción congela los datos.`)) return;
+    setSavingCierre(true);
+    const cartPendiente = creditos
+      .filter(c => c.estado === 'Pendiente')
+      .reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0);
+    const { data, error } = await supabase.from('cierres_mensuales').insert([{
+      id: mesId,
+      mes: mesSeleccionado + 1,
+      anio: anioSeleccionado,
+      ingresos_contado: totalContado,
+      ingresos_credito: totalCredito,
+      cogs,
+      gastos_variables: totalGastosVariables,
+      gastos_fijos: totalGastosFijosMes,
+      utilidad_bruta: utilidadBruta,
+      utilidad_neta: utilidadNeta,
+      saldo_efectivo: saldoEfectivo,
+      saldo_banco: saldoBanco,
+      cartera_pendiente: cartPendiente,
+      cerrado_por: user?.username ?? 'Admin',
+      fecha_cierre: new Date().toISOString().slice(0, 10),
+    }]).select().single();
+    setSavingCierre(false);
+    if (!error && data) {
+      setCierres(prev => [data, ...prev]);
+      showMsg(`📸 Cierre de ${MESES[mesSeleccionado]} ${anioSeleccionado} guardado`);
+    }
+  };
+
+  // Saldos separados
+  const saldoEfectivo = useMemo(() => {
+    return movimientos
+      .filter(m => (m.cuenta || 'Efectivo') === 'Efectivo')
+      .reduce((acc, m) => m.tipo === 'Ingreso' ? acc + Number(m.monto) : acc - Number(m.monto), 0);
+  }, [movimientos]);
+
+  const saldoBanco = useMemo(() => {
+    return movimientos
+      .filter(m => (m.cuenta) === 'Banco')
+      .reduce((acc, m) => m.tipo === 'Ingreso' ? acc + Number(m.monto) : acc - Number(m.monto), 0);
+  }, [movimientos]);
+
+  const saldoCaja = saldoEfectivo + saldoBanco;
+
+  const movimientosFiltrados = useMemo(() => {
+    if (filtroCuenta === 'todos') return movimientos;
+    return movimientos.filter(m => (m.cuenta || 'Efectivo') === filtroCuenta);
+  }, [movimientos, filtroCuenta]);
+
+  // ── Guardar Datos ─────────────────────────────────────────────────────────
+  const showMsg = (msg: string) => {
+    setMensajeExito(msg);
+    setTimeout(() => setMensajeExito(null), 3000);
+  };
+
+  const guardarGasto = async () => {
+    if (!formGasto.descripcion.trim() || formGasto.monto <= 0) return;
+    setSaving(true);
+    const { data, error } = await supabase.from("gastos").insert([{ ...formGasto }]).select().single();
+    if (!error && data) {
+      setGastos(prev => [data, ...prev]);
+      
+      // Determinar cuenta: Efectivo o Banco
+      const cuentaDestino = formGasto.metodo_pago === 'Transferencia' || formGasto.metodo_pago === 'Tarjeta' ? 'Banco' : 'Efectivo';
+
+      // Descontar automáticamente de la caja/banco
+      const { data: cajaData } = await supabase.from('caja_banco').insert([{
+          fecha: formGasto.fecha,
+          concepto: `Pago Gasto: ${formGasto.categoria} - ${formGasto.descripcion}`,
+          tipo: 'Egreso',
+          monto: formGasto.monto,
+          creado_por: user?.username ?? 'Admin',
+          saldo_acum: 0,
+          cuenta: cuentaDestino
+      }]).select().single();
+      
+      if (cajaData) {
+          setMovimientos(prev => [cajaData, ...prev]);
+      }
+
+      showMsg(`✅ Gasto registrado y descontado de ${cuentaDestino}`);
+      setShowModal(null);
+      setFormGasto({ ...formGasto, descripcion: "", monto: 0 });
+    }
+    setSaving(false);
+  };
+
+  const guardarMovimiento = async () => {
+    if (!formMovimiento.concepto.trim() || formMovimiento.monto <= 0) return;
+    setSaving(true);
+    const saldoRef = formMovimiento.cuenta === 'Banco' ? saldoBanco : saldoEfectivo;
+    const nuevoSaldo = formMovimiento.tipo === "Ingreso" ? saldoRef + formMovimiento.monto : saldoRef - formMovimiento.monto;
+    const payload = { ...formMovimiento, saldo_acum: nuevoSaldo };
+    const { data, error } = await supabase.from("caja_banco").insert([payload]).select().single();
+    if (!error && data) {
+      setMovimientos(prev => [data, ...prev]);
+      showMsg(`✅ Movimiento registrado en ${formMovimiento.cuenta}`);
+      setShowModal(null);
+      setFormMovimiento({ ...formMovimiento, concepto: "", monto: 0 });
+    }
+    setSaving(false);
+  };
+
+  const guardarGastoFijo = async () => {
+    if (!formFijo.nombre.trim() || formFijo.monto <= 0) return;
+    setSaving(true);
+    const { data, error } = await supabase.from("gastos_fijos").insert([{ ...formFijo }]).select().single();
+    if (!error && data) {
+      setGastosFijos(prev => [...prev, data]);
+      showMsg("✅ Gasto fijo registrado");
+      setShowModal(null);
+      setFormFijo({ nombre: "", monto: 0, activo: true });
+    }
+    setSaving(false);
+  };
+
+  const guardarPrestamo = async () => {
+    if (!formPrestamo.beneficiario.trim() || formPrestamo.monto <= 0) return;
+    setSaving(true);
+    const { data, error } = await supabase.from("prestamos").insert([{ ...formPrestamo }]).select().single();
+    if (!error && data) {
+      setPrestamos(prev => [data, ...prev]);
+
+      // Modificar caja (Si otorgamos plata, sale de caja. Si recibimos, entra a caja).
+      const tipoCaja = formPrestamo.tipo === "Otorgado" ? "Egreso" : "Ingreso";
+      const { data: cajaData } = await supabase.from("caja_banco").insert([{
+          fecha: formPrestamo.fecha,
+          concepto: `Préstamo ${formPrestamo.tipo}: ${formPrestamo.beneficiario}`,
+          tipo: tipoCaja,
+          monto: formPrestamo.monto,
+          creado_por: user?.username ?? "Admin",
+          saldo_acum: 0
+      }]).select().single();
+
+      if (cajaData) setMovimientos(prev => [cajaData, ...prev]);
+
+      showMsg("✅ Préstamo registrado y caja actualizada");
+      setShowModal(null);
+      setFormPrestamo({ ...formPrestamo, beneficiario: "", descripcion: "", monto: 0 });
+    }
+    setSaving(false);
+  };
+
+  const toggleGastoFijo = async (gasto: GastoFijo) => {
+    const { error } = await supabase.from("gastos_fijos").update({ activo: !gasto.activo }).eq("id", gasto.id);
+    if (!error) {
+      setGastosFijos(prev => prev.map(g => g.id === gasto.id ? { ...g, activo: !g.activo } : g));
+    }
+  };
+
+  const eliminarRegistro = async (tabla: string, id: number, setter: any) => {
+    if (!confirm("¿Eliminar este registro permanentemente?")) return;
+    await supabase.from(tabla).delete().eq("id", id);
+    setter((prev: any[]) => prev.filter(item => item.id !== id));
+  };
+
+  const fmtCOP = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
+

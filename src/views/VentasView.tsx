@@ -189,6 +189,18 @@ export default function VentasView() {
       );
       const precioUnitario = productoObj?.precio_venta ?? 0;
 
+      // FASE 4: Leer costo de producción actual y congelarlo en cada venta
+      let costoUnitario = 0;
+      try {
+        const slugBusqueda = salidaActual.producto.toLowerCase().replace(/\s+/g, '-');
+        const { data: prodDB } = await supabase
+          .from('productos')
+          .select('costo_produccion')
+          .or(`slug.eq.${slugBusqueda},nombre.eq.${salidaActual.producto}`)
+          .maybeSingle();
+        costoUnitario = Number(prodDB?.costo_produccion) || 0;
+      } catch { /* si falla, costo queda en 0 */ }
+
       // Base sin salida_id para evitar problemas de FK
       const base = {
         fecha,
@@ -202,7 +214,7 @@ export default function VentasView() {
       // 1. Registrar venta de contado
       if (cantidadContado > 0) {
         const totalContado = cantidadContado * precioUnitario;
-        const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado };
+        const liqContado = { ...base, id: `LIQ-${Date.now()}-C`, tipo_pago: 'Contado', cantidad_venta: cantidadContado, total_pesos: totalContado, costo_unitario_produccion: costoUnitario };
         const res = await googleSheetsService.appendRow('Liquidacion', liqContado);
         if (!res) hayError = true;
         setHistorial(prev => [liqContado, ...prev]);
@@ -228,6 +240,7 @@ export default function VentasView() {
           tipo_pago: 'Crédito',
           cantidad_venta: cr.cantidad,
           total_pesos: montoPesos,
+          costo_unitario_produccion: costoUnitario,
           cliente: cr.clienteNombre, telefono: cr.telefono,
           direccion: cr.direccion, fecha_cobro: cr.fecha_cobro,
         };

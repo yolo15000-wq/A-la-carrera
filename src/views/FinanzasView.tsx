@@ -70,7 +70,7 @@ export default function FinanzasView() {
   const now = new Date();
   const [mesSeleccionado, setMesSeleccionado] = useState(now.getMonth());
   const [anioSeleccionado, setAnioSeleccionado] = useState(now.getFullYear());
-  const [activeTab, setActiveTab] = useState<"pnl" | "caja" | "fijos" | "prestamos">("pnl");
+  const [activeTab, setActiveTab] = useState<"pnl" | "caja" | "fijos" | "prestamos" | "cierre">("pnl");
 
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [gastosFijos, setGastosFijos] = useState<GastoFijo[]>([]);
@@ -83,6 +83,9 @@ export default function FinanzasView() {
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
   
   const [ingresosBrutos, setIngresosBrutos] = useState(0);
+  const [cogs, setCogs] = useState(0); // FASE 5: Costo de Ventas real
+  const [cierres, setCierres] = useState<any[]>([]); // FASE 7: historial de cierres
+  const [savingCierre, setSavingCierre] = useState(false);
 
   // Forms
   const [formGasto, setFormGasto] = useState<Gasto>({
@@ -140,11 +143,14 @@ export default function FinanzasView() {
       if (resFijos.data) setGastosFijos(resFijos.data);
       if (resCaja.data) setMovimientos(resCaja.data);
       if (resPrest.data) setPrestamos(resPrest.data);
-      
-      if (resLiq.data) {
-        // En una app real filtraríamos por mes, aquí lo simplificamos sumando lo del mes seleccionado
-        // Lo calcularemos dinámicamente en useMemo
-      }
+
+      // FASE 7: cargar cierres mensuales
+      const { data: cierresData } = await supabase
+        .from('cierres_mensuales')
+        .select('*')
+        .order('anio', { ascending: false })
+        .order('mes', { ascending: false });
+      if (cierresData) setCierres(cierresData);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }
@@ -157,26 +163,33 @@ export default function FinanzasView() {
     async function fetchIngresos() {
       const { data } = await supabase.from("liquidaciones").select("total_pesos, fecha, tipo_pago");
       if (data) {
-        // Filtrar por mes/año seleccionado
-        const liquidacionesMes = data.filter(row => {
+        const liquidacionesMes = data.filter((row: any) => {
           if (!row.fecha) return false;
           const [d, m, y] = row.fecha.split("/").map(Number);
-          // Si el formato es DD/MM/YYYY
           if (m && y) return m - 1 === mesSeleccionado && y === anioSeleccionado;
           return false;
         });
         
         const contado = liquidacionesMes
-          .filter(r => r.tipo_pago === 'Contado')
-          .reduce((acc, row) => acc + (Number(row.total_pesos) || 0), 0);
+          .filter((r: any) => r.tipo_pago === 'Contado')
+          .reduce((acc: number, row: any) => acc + (Number(row.total_pesos) || 0), 0);
           
         const credito = liquidacionesMes
-          .filter(r => r.tipo_pago === 'Crédito')
-          .reduce((acc, row) => acc + (Number(row.total_pesos) || 0), 0);
+          .filter((r: any) => r.tipo_pago === 'Crédito')
+          .reduce((acc: number, row: any) => acc + (Number(row.total_pesos) || 0), 0);
+
+        // FASE 5: Calcular COGS = sum(costo_unitario_produccion * cantidad_venta)
+        const cogsCalc = liquidacionesMes
+          .reduce((acc: number, row: any) => {
+            const costo = Number(row.costo_unitario_produccion) || 0;
+            const cant = Number(row.cantidad_venta) || 0;
+            return acc + (costo * cant);
+          }, 0);
 
         setTotalContado(contado);
         setTotalCredito(credito);
         setIngresosBrutos(contado + credito);
+        setCogs(cogsCalc);
       }
     }
     fetchIngresos();
@@ -194,10 +207,50 @@ export default function FinanzasView() {
   
   const totalGastosFijosMes = useMemo(() => gastosFijos.filter(g => g.activo).reduce((acc, g) => acc + (Number(g.monto) || 0), 0), [gastosFijos]);
 
-  const ingresosTotales = ingresosBrutos; // + Cobros de cartera si lo tuviéramos separado
+  const ingresosTotales = ingresosBrutos;
   
-  // COGS aproximado (si tuviéramos costo real por producto lo sumaríamos aquí, por ahora lo asumimos dentro de materia prima/gastos variables)
-  const utilidadNeta = ingresosTotales - totalGastosVariables - totalGastosFijosMes;
+  // FASE 5: P&L profesional con COGS
+  const utilidadBruta = ingresosTotales - cogs;
+  const margenBruto = ingresosTotales > 0 ? Math.round((utilidadBruta / ingresosTotales) * 100) : 0;
+  const totalGastos = totalGastosVariables + totalGastosFijosMes;
+  const utilidadNeta = utilidadBruta - totalGastos;
+  const margenNeto = ingresosTotales > 0 ? Math.round((utilidadNeta / ingresosTotales) * 100) : 0;
+
+  // FASE 7: Función cerrar mes
+  const cerrarMes = async () => {
+    const mesId = `CIERRE-${anioSeleccionado}-${String(mesSeleccionado + 1).padStart(2, '0')}`;
+    if (cierres.some(c => c.id === mesId)) {
+      alert('Este mes ya tiene un cierre registrado.');
+      return;
+    }
+    if (!confirm(`¿Cerrar el mes de ${MESES[mesSeleccionado]} ${anioSeleccionado}? Esta acción congela los datos.`)) return;
+    setSavingCierre(true);
+    const cartPendiente = creditos
+      .filter(c => c.estado === 'Pendiente')
+      .reduce((a, c) => a + (Number(c.monto_deuda) || 0), 0);
+    const { data, error } = await supabase.from('cierres_mensuales').insert([{
+      id: mesId,
+      mes: mesSeleccionado + 1,
+      anio: anioSeleccionado,
+      ingresos_contado: totalContado,
+      ingresos_credito: totalCredito,
+      cogs,
+      gastos_variables: totalGastosVariables,
+      gastos_fijos: totalGastosFijosMes,
+      utilidad_bruta: utilidadBruta,
+      utilidad_neta: utilidadNeta,
+      saldo_efectivo: saldoEfectivo,
+      saldo_banco: saldoBanco,
+      cartera_pendiente: cartPendiente,
+      cerrado_por: user?.username ?? 'Admin',
+      fecha_cierre: new Date().toISOString().slice(0, 10),
+    }]).select().single();
+    setSavingCierre(false);
+    if (!error && data) {
+      setCierres(prev => [data, ...prev]);
+      showMsg(`📸 Cierre de ${MESES[mesSeleccionado]} ${anioSeleccionado} guardado`);
+    }
+  };
 
   // Saldos separados
   const saldoEfectivo = useMemo(() => {
@@ -327,49 +380,59 @@ export default function FinanzasView() {
   };
 
   const fmtCOP = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
+  // Preparar datos para el gráfico de histórico de cierres
+  const chartData = [...cierres].reverse().map(c => ({
+    name: `${MESES[c.mes - 1].substring(0,3)} ${c.anio}`,
+    Utilidad: c.utilidad_neta || 0,
+    Ingresos: (c.ingresos_contado || 0) + (c.ingresos_credito || 0)
+  }));
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 selection:bg-brand-500/30">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-900 p-6 md:p-8 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4" style={{ borderTop: "3px solid #E5007E" }}>
-        <div>
-          <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white uppercase italic tracking-tighter">
-            Finanzas & Estado de Resultados
+      <div className="glass p-6 md:p-8 rounded-[32px] relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="absolute top-0 inset-x-0 h-1 bg-brand-500 opacity-80" />
+        <div className="absolute top-0 left-0 w-64 h-64 bg-brand-500/10 blur-[100px] rounded-full pointer-events-none" />
+        
+        <div className="relative z-10">
+          <h2 className="text-2xl md:text-3xl font-black text-foreground uppercase italic tracking-tighter">
+            Control Financiero
           </h2>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">
-            Control Financiero Estilo QuickBooks
+          <p className="text-[10px] text-brand-600 dark:text-brand-400 font-bold uppercase tracking-[4px] mt-1">
+            Cockpit de Mando · Operaciones
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 relative z-10">
           {/* Selector Mes / Año */}
           <div className="relative">
-            <select value={mesSeleccionado} onChange={e => setMesSeleccionado(Number(e.target.value))} className="appearance-none pl-4 pr-8 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold outline-none cursor-pointer">
-              {MESES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+            <select value={mesSeleccionado} onChange={e => setMesSeleccionado(Number(e.target.value))} className="appearance-none pl-4 pr-8 py-2.5 bg-muted border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground outline-none cursor-pointer focus:border-brand-500 transition-colors">
+              {MESES.map((m, i) => <option key={m} value={i} className="bg-background text-foreground">{m}</option>)}
             </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
-          <select value={anioSeleccionado} onChange={e => setAnioSeleccionado(Number(e.target.value))} className="pl-4 pr-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold outline-none">
-            {[2024, 2025, 2026, 2027].map(a => <option key={a}>{a}</option>)}
+          <select value={anioSeleccionado} onChange={e => setAnioSeleccionado(Number(e.target.value))} className="pl-4 pr-3 py-2.5 bg-muted border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground outline-none focus:border-brand-500 transition-colors">
+            {[2024, 2025, 2026, 2027].map(a => <option key={a} className="bg-background text-foreground">{a}</option>)}
           </select>
         </div>
       </div>
 
       {mensajeExito && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-3 rounded-xl flex items-center gap-2 font-bold text-sm">
+        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-5 py-3 rounded-xl flex items-center gap-2 font-bold text-xs uppercase tracking-widest animate-in fade-in slide-in-from-top-4">
           <CheckCircle2 size={16} /> {mensajeExito}
         </div>
       )}
 
       {/* ── Tabs de Navegación ──────────────────────────────────────────────── */}
-      <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl w-fit">
+      <div className="flex overflow-x-auto glass p-1.5 rounded-2xl gap-1 no-scrollbar">
         {[
-          { id: "pnl", label: "Estado de Resultados (P&L)", icon: Activity },
-          { id: "caja", label: "Flujo y Caja Bancaria", icon: Wallet },
-          { id: "fijos", label: "Gastos Fijos", icon: Building },
-          { id: "prestamos", label: "Préstamos", icon: DollarSign }
+          { id: "pnl",      label: "P&L",                 icon: Activity },
+          { id: "caja",     label: "Caja Bancaria",       icon: Wallet },
+          { id: "fijos",    label: "Gastos Fijos",        icon: Building },
+          { id: "prestamos",label: "Préstamos",           icon: DollarSign },
+          { id: "cierre",   label: "Cierre Mensual",      icon: BarChart3 },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-gray-700 text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+            className={`whitespace-nowrap flex items-center gap-2 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === tab.id ? 'bg-brand-500 text-white shadow-[0_0_15px_-3px_rgba(229,0,126,0.3)]' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}>
             <tab.icon size={14} /> {tab.label}
           </button>
         ))}
@@ -383,74 +446,137 @@ export default function FinanzasView() {
               PESTAÑA 1: ESTADO DE RESULTADOS (P&L)
           ========================================================================= */}
           {activeTab === "pnl" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Total Ingresos</p>
-                  <p className="text-2xl font-black text-brand-600">{fmtCOP(ingresosTotales)}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Efectivo / Contado</p>
-                  <p className="text-2xl font-black text-emerald-600">{fmtCOP(totalContado)}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Gastos Variables</p>
-                  <p className="text-2xl font-black text-rose-500">{fmtCOP(totalGastosVariables)}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Gastos Fijos Mes</p>
-                  <p className="text-2xl font-black text-orange-500">{fmtCOP(totalGastosFijosMes)}</p>
-                </div>
-                <div className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-center ${utilidadNeta >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                  <p className={`text-[10px] font-black uppercase mb-1 ${utilidadNeta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Utilidad Neta</p>
-                  <p className={`text-2xl md:text-3xl font-black ${utilidadNeta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtCOP(utilidadNeta)}</p>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-5 border-b flex justify-between items-center bg-gray-50">
-                  <h3 className="font-black uppercase text-sm text-gray-700">Detalle de Gastos Variables</h3>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              
+              {/* P&L Profesional (2 columnas en desktop) */}
+              <div className="xl:col-span-2 glass rounded-[32px] overflow-hidden flex flex-col">
+                <div className="bg-muted/40 border-b border-border px-6 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-foreground font-black uppercase tracking-widest text-sm">Estado de Resultados</h3>
+                    <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">{MESES[mesSeleccionado]} {anioSeleccionado}</p>
+                  </div>
                   {user?.role === "admin" && (
-                    <button onClick={() => setShowModal("gasto")} className="flex items-center gap-1 px-3 py-1.5 bg-brand-500 text-white rounded-lg text-xs font-bold shadow-md hover:bg-brand-600">
-                      <PlusCircle size={14} /> Agregar Gasto Variable
+                    <button onClick={cerrarMes} disabled={savingCierre}
+                      className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-[#cc006f] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:translate-y-1 disabled:opacity-50 shadow-[0_0_15px_-3px_rgba(229,0,126,0.3)]">
+                      {savingCierre ? <Loader2 size={12} className="animate-spin" /> : <BarChart3 size={14} />} Cerrar Mes
                     </button>
                   )}
                 </div>
-                <div className="p-0 overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Categoría</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Descripción</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Método</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
-                        <th className="px-5 py-3"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {gastosFiltrados.length === 0 ? (
-                        <tr><td colSpan={6} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">No hay gastos en este mes</td></tr>
-                      ) : gastosFiltrados.map(g => (
-                        <tr key={g.id} className="hover:bg-gray-50">
-                          <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{g.fecha}</td>
-                          <td className="px-5 py-3 text-xs font-bold text-brand-600">{g.categoria}</td>
-                          <td className="px-5 py-3 text-xs">{g.descripcion}</td>
-                          <td className="px-5 py-3 text-xs">
-                            <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${g.metodo_pago === 'Efectivo' ? 'bg-emerald-100 text-emerald-700' : g.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{g.metodo_pago || 'Efectivo'}</span>
-                          </td>
-                          <td className="px-5 py-3 font-black text-rose-600 text-right">{fmtCOP(g.monto)}</td>
-                          <td className="px-5 py-3 text-right">
-                            {user?.role === "admin" && (
-                              <button onClick={() => eliminarRegistro("gastos", g.id!, setGastos)} className="text-gray-300 hover:text-rose-500">
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </td>
+
+                <div className="divide-y divide-border flex-1">
+                  <div className="px-6 py-5 bg-emerald-500/5">
+                    <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-[2px] mb-3">[+] INGRESOS BRUTOS</p>
+                    <div className="space-y-2 ml-4">
+                      <div className="flex justify-between text-sm"><span className="text-muted-foreground font-bold text-xs uppercase">Contado</span><span className="font-bold data-number text-foreground">{fmtCOP(totalContado)}</span></div>
+                      <div className="flex justify-between text-sm"><span className="text-muted-foreground font-bold text-xs uppercase">Crédito</span><span className="font-bold data-number text-foreground">{fmtCOP(totalCredito)}</span></div>
+                    </div>
+                    <div className="flex justify-between mt-4 pt-4 border-t border-emerald-500/20"><span className="font-black text-emerald-600 dark:text-emerald-400 text-xs uppercase tracking-widest">Total</span><span className="font-black text-emerald-600 dark:text-emerald-400 text-xl data-number">{fmtCOP(ingresosTotales)}</span></div>
+                  </div>
+                  
+                  <div className="px-6 py-5 bg-muted/40">
+                    <div className="flex justify-between items-center">
+                      <div><p className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-[2px]">[-] COSTO DE VENTAS (COGS)</p>
+                      <p className="text-[9px] text-muted-foreground font-bold mt-1 uppercase">{cogs === 0 ? "⚠️ Costos de producción no definidos" : "Costo prod. × unidades vendidas"}</p></div>
+                      <span className="font-black text-rose-600 dark:text-rose-400 text-xl data-number">{fmtCOP(cogs)}</span>
+                    </div>
+                  </div>
+
+                  <div className={`px-6 py-6 ${utilidadBruta >= 0 ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
+                    <div className="flex justify-between items-center">
+                      <div><p className="text-[10px] font-black text-foreground uppercase tracking-[2px]">[=] UTILIDAD BRUTA</p>
+                      <p className="text-[9px] text-muted-foreground font-bold mt-1 uppercase tracking-wider">Margen: <span className={`font-black ${margenBruto>=40?"text-emerald-600 dark:text-emerald-400":margenBruto>=20?"text-amber-600 dark:text-amber-400":"text-rose-600 dark:text-rose-400"}`}>{margenBruto}%</span></p></div>
+                      <span className={`font-black text-2xl data-number ${utilidadBruta>=0?"text-emerald-600 dark:text-emerald-400":"text-rose-600 dark:text-rose-400"}`}>{fmtCOP(utilidadBruta)}</span>
+                    </div>
+                  </div>
+
+                  <div className="px-6 py-5 bg-orange-500/5">
+                    <p className="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-[2px] mb-3">[-] GASTOS OPERATIVOS</p>
+                    <div className="space-y-2 ml-4">
+                      <div className="flex justify-between text-sm"><span className="text-muted-foreground font-bold text-xs uppercase">Variables</span><span className="font-bold data-number text-foreground">{fmtCOP(totalGastosVariables)}</span></div>
+                      <div className="flex justify-between text-sm"><span className="text-muted-foreground font-bold text-xs uppercase">Fijos</span><span className="font-bold data-number text-foreground">{fmtCOP(totalGastosFijosMes)}</span></div>
+                    </div>
+                    <div className="flex justify-between mt-4 pt-4 border-t border-orange-500/20"><span className="font-black text-orange-600 dark:text-orange-400 text-xs uppercase tracking-widest">Total</span><span className="font-black text-orange-600 dark:text-orange-400 text-xl data-number">{fmtCOP(totalGastosVariables+totalGastosFijosMes)}</span></div>
+                  </div>
+
+                  <div className={`px-6 py-8 relative overflow-hidden ${utilidadNeta>=0?"bg-emerald-500/10":"bg-rose-500/10"}`}>
+                    {/* Glow effect */}
+                    <div className={`absolute top-1/2 right-10 w-32 h-32 blur-[60px] rounded-full pointer-events-none ${utilidadNeta>=0?"bg-emerald-500/30":"bg-rose-500/30"}`} />
+                    
+                    <div className="flex justify-between items-center relative z-10">
+                      <div><p className="text-[10px] font-black text-foreground uppercase tracking-[2px]">[=] UTILIDAD NETA</p>
+                      <p className="text-[9px] text-muted-foreground font-bold mt-1 uppercase tracking-wider">Margen neto: <span className={`font-black ${margenNeto>=10?"text-emerald-600 dark:text-emerald-400":margenNeto>=5?"text-amber-600 dark:text-amber-400":"text-rose-600 dark:text-rose-400"}`}>{margenNeto}%</span></p></div>
+                      <span className={`font-black text-4xl data-number tracking-tighter ${utilidadNeta>=0?"text-emerald-600 dark:text-emerald-400 glow-brand":"text-rose-600 dark:text-rose-400"}`}>{fmtCOP(utilidadNeta)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Columna Derecha: Gráfico y Detalles */}
+              <div className="space-y-6">
+                {/* Gráfico Histórico */}
+                <div className="glass rounded-[32px] p-6 h-64 flex flex-col">
+                  <h3 className="font-black uppercase text-xs text-foreground tracking-widest mb-4">Tendencia de Utilidad</h3>
+                  <div className="flex-1 w-full min-h-0">
+                    {chartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                          <XAxis dataKey="name" stroke="var(--chart-text)" fontSize={10} tickMargin={10} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '16px', fontFamily: 'Outfit' }}
+                            itemStyle={{ color: 'var(--foreground)', fontFamily: 'JetBrains Mono', fontWeight: 'bold' }}
+                          />
+                          <Line type="monotone" dataKey="Utilidad" stroke="#E5007E" strokeWidth={3} dot={{ fill: '#E5007E', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center px-4">
+                        Aún no hay cierres registrados para graficar.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Detalle de Gastos */}
+                <div className="glass rounded-[32px] border-border shadow-sm overflow-hidden flex-1 flex flex-col">
+                  <div className="p-5 border-b border-border flex justify-between items-center bg-muted/40">
+                    <h3 className="font-black uppercase text-xs text-foreground tracking-widest">Gastos Variables</h3>
+                    {user?.role === "admin" && (
+                      <button onClick={() => setShowModal("gasto")} className="flex items-center gap-1 p-2 bg-white/10 text-white rounded-xl text-xs font-bold hover:bg-white/20 transition-all active:translate-y-1">
+                        <PlusCircle size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-0 overflow-x-auto flex-1 max-h-80">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-muted/40 sticky top-0 backdrop-blur-md">
+                        <tr>
+                          <th className="px-5 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Detalle</th>
+                          <th className="px-5 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground text-right">Monto</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {gastosFiltrados.length === 0 ? (
+                          <tr><td colSpan={2} className="p-8 text-center text-muted-foreground font-bold text-[10px] uppercase tracking-widest">No hay gastos</td></tr>
+                        ) : gastosFiltrados.map(g => (
+                          <tr key={g.id} className="hover:bg-muted/40 transition-colors">
+                            <td className="px-5 py-3">
+                              <p className="text-xs font-black text-brand-600 dark:text-brand-400">{g.categoria}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{g.descripcion}</p>
+                            </td>
+                            <td className="px-5 py-3 text-right">
+                              <p className="font-black text-rose-600 dark:text-rose-400 text-sm data-number">{fmtCOP(g.monto)}</p>
+                              {user?.role === "admin" && (
+                                <button onClick={() => eliminarRegistro("gastos", g.id!, setGastos)} className="text-muted-foreground hover:text-rose-500 mt-1 transition-colors">
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -461,89 +587,84 @@ export default function FinanzasView() {
           ========================================================================= */}
           {activeTab === "caja" && (
             <div className="space-y-6">
-              {/* Tarjetas de saldo: Efectivo, Banco, Total */}
+              {/* Tarjetas de saldo */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 rounded-[24px] shadow-xl text-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Banknote size={18} className="text-emerald-200" />
-                    <p className="text-emerald-100 font-black uppercase tracking-widest text-[10px]">Efectivo en Caja</p>
+                <div className="glass p-6 rounded-[32px] relative overflow-hidden group">
+                  <div className="absolute -right-10 -bottom-10 opacity-10 group-hover:scale-110 transition-transform duration-500"><Banknote size={150} /></div>
+                  <div className="flex items-center gap-2 mb-4 relative z-10">
+                    <div className="p-2 bg-emerald-500/20 rounded-xl"><Banknote size={18} className="text-emerald-600 dark:text-emerald-400" /></div>
+                    <p className="text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Efectivo Físico</p>
                   </div>
-                  <h2 className="text-3xl font-black italic tracking-tighter">{fmtCOP(saldoEfectivo)}</h2>
+                  <h2 className="text-4xl font-black italic tracking-tighter text-foreground data-number relative z-10">{fmtCOP(saldoEfectivo)}</h2>
                 </div>
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-700 p-6 rounded-[24px] shadow-xl text-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Landmark size={18} className="text-blue-200" />
-                    <p className="text-blue-100 font-black uppercase tracking-widest text-[10px]">Cuenta Bancaria</p>
+                
+                <div className="glass p-6 rounded-[32px] relative overflow-hidden group">
+                  <div className="absolute -right-10 -bottom-10 opacity-10 group-hover:scale-110 transition-transform duration-500"><Landmark size={150} /></div>
+                  <div className="flex items-center gap-2 mb-4 relative z-10">
+                    <div className="p-2 bg-blue-500/20 rounded-xl"><Landmark size={18} className="text-blue-600 dark:text-blue-400" /></div>
+                    <p className="text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Cuenta Bancaria</p>
                   </div>
-                  <h2 className="text-3xl font-black italic tracking-tighter">{fmtCOP(saldoBanco)}</h2>
+                  <h2 className="text-4xl font-black italic tracking-tighter text-foreground data-number relative z-10">{fmtCOP(saldoBanco)}</h2>
                 </div>
-                <div className="bg-gradient-to-br from-brand-500 to-purple-700 p-6 rounded-[24px] shadow-xl text-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Wallet size={18} className="text-purple-200" />
-                    <p className="text-purple-100 font-black uppercase tracking-widest text-[10px]">Total Disponible</p>
+                
+                <div className="glass p-6 rounded-[32px] relative overflow-hidden bg-brand-500/10 border-brand-500/30 group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/20 blur-[50px] rounded-full pointer-events-none" />
+                  <div className="flex items-center gap-2 mb-4 relative z-10">
+                    <div className="p-2 bg-brand-500/20 rounded-xl"><Wallet size={18} className="text-brand-600 dark:text-brand-400" /></div>
+                    <p className="text-brand-700 dark:text-brand-200 font-bold uppercase tracking-widest text-[10px]">Total Liquidez</p>
                   </div>
-                  <h2 className="text-3xl font-black italic tracking-tighter">{fmtCOP(saldoCaja)}</h2>
+                  <h2 className="text-4xl font-black italic tracking-tighter text-white data-number relative z-10 glow-brand">{fmtCOP(saldoCaja)}</h2>
                 </div>
               </div>
 
-              {/* Botón nuevo movimiento */}
-              {user?.role === "admin" && (
-                <div className="flex justify-end">
-                  <button onClick={() => setShowModal("movimiento")} className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs hover:bg-black shadow-lg transition-transform active:scale-95">
-                    <PlusCircle size={16} /> Nuevo Movimiento
+              <div className="flex justify-between items-center gap-4 flex-wrap">
+                <div className="flex glass p-1 rounded-2xl w-fit">
+                  {(["todos", "Efectivo", "Banco"] as const).map(f => (
+                    <button key={f} onClick={() => setFiltroCuenta(f)}
+                      className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${filtroCuenta === f ? 'bg-white/10 text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'}`}>
+                      {f === 'todos' ? 'Todas las cuentas' : f}
+                    </button>
+                  ))}
+                </div>
+                {user?.role === "admin" && (
+                  <button onClick={() => setShowModal("movimiento")} className="flex items-center gap-2 bg-brand-500 text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#cc006f] shadow-[0_0_15px_-3px_rgba(229,0,126,0.3)] transition-all active:translate-y-1">
+                    <PlusCircle size={16} /> Movimiento Manual
                   </button>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Filtro por cuenta */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-5 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-                  <h3 className="font-black uppercase text-sm text-gray-700">Historial de Movimientos</h3>
-                  <div className="flex bg-gray-200 p-1 rounded-xl">
-                    {(["todos", "Efectivo", "Banco"] as const).map(f => (
-                      <button key={f} onClick={() => setFiltroCuenta(f)}
-                        className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filtroCuenta === f ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}>
-                        {f === 'todos' ? 'Todos' : f}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {/* Historial de Movimientos */}
+              <div className="glass rounded-[32px] overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-muted/40">
                       <tr>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Concepto</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Cuenta</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Tipo</th>
-                        <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
-                        <th className="px-5 py-3"></th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Fecha</th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Concepto</th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Cuenta</th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground text-right">Monto</th>
+                        <th className="px-6 py-4"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {movimientosFiltrados.length === 0 ? (
-                        <tr><td colSpan={6} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">Sin movimientos registrados</td></tr>
+                        <tr><td colSpan={5} className="p-10 text-center text-muted-foreground font-bold text-[10px] uppercase tracking-widest">Sin movimientos registrados</td></tr>
                       ) : movimientosFiltrados.map(m => (
-                        <tr key={m.id} className="hover:bg-gray-50">
-                          <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{m.fecha}</td>
-                          <td className="px-5 py-3 font-bold text-gray-800 text-xs">{m.concepto}</td>
-                          <td className="px-5 py-3">
-                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${(m.cuenta || 'Efectivo') === 'Banco' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        <tr key={m.id} className="hover:bg-muted/40 transition-colors">
+                          <td className="px-6 py-4 font-bold text-muted-foreground text-[10px] data-number">{m.fecha}</td>
+                          <td className="px-6 py-4 font-bold text-foreground text-xs">{m.concepto}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${(m.cuenta || 'Efectivo') === 'Banco' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'}`}>
                               {(m.cuenta || 'Efectivo') === 'Banco' ? '🏦 Banco' : '💵 Efectivo'}
                             </span>
                           </td>
-                          <td className="px-5 py-3">
-                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${m.tipo === 'Ingreso' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                              {m.tipo}
-                            </span>
-                          </td>
-                          <td className={`px-5 py-3 font-black text-right ${m.tipo === 'Ingreso' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          <td className={`px-6 py-4 font-black text-right data-number text-sm ${m.tipo === 'Ingreso' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                             {m.tipo === 'Ingreso' ? '+' : '-'}{fmtCOP(m.monto)}
                           </td>
-                          <td className="px-5 py-3 text-right">
+                          <td className="px-6 py-4 text-right">
                             {user?.role === "admin" && (
-                              <button onClick={() => eliminarRegistro("caja_banco", m.id!, setMovimientos)} className="text-gray-300 hover:text-rose-500">
-                                <Trash2 size={16} />
+                              <button onClick={() => eliminarRegistro("caja_banco", m.id!, setMovimientos)} className="text-muted-foreground hover:text-rose-500 transition-colors p-2 bg-muted/40 hover:bg-white/10 rounded-xl">
+                                <Trash2 size={14} />
                               </button>
                             )}
                           </td>
@@ -561,35 +682,165 @@ export default function FinanzasView() {
           ========================================================================= */}
           {activeTab === "fijos" && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="font-black uppercase text-gray-700">Configuración de Gastos Fijos (Mensuales)</h3>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h3 className="font-black uppercase tracking-widest text-foreground text-sm">Estructura de Costos Fijos</h3>
+                  <p className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase mt-1">Gastos recurrentes mensuales</p>
+                </div>
                 {user?.role === "admin" && (
-                  <button onClick={() => setShowModal("fijo")} className="flex items-center gap-1 px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-black">
-                    <PlusCircle size={14} /> Nuevo Gasto Fijo
+                  <button onClick={() => setShowModal("fijo")} className="flex items-center gap-2 px-5 py-3 bg-brand-500 text-white rounded-2xl text-[10px] uppercase tracking-widest font-black shadow-[0_0_15px_-3px_rgba(229,0,126,0.3)] hover:bg-[#cc006f] transition-all active:translate-y-1">
+                    <PlusCircle size={16} /> Nuevo Fijo
                   </button>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {gastosFijos.map(g => (
-                  <div key={g.id} className={`p-6 rounded-[24px] border ${g.activo ? 'bg-white border-brand-200 shadow-md' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
-                    <div className="flex justify-between items-start mb-4">
-                      <h4 className="font-black text-gray-800 uppercase italic">{g.nombre}</h4>
-                      <button onClick={() => toggleGastoFijo(g)} className={`w-10 h-5 rounded-full relative transition-colors ${g.activo ? 'bg-brand-500' : 'bg-gray-300'}`}>
-                        <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${g.activo ? 'left-6' : 'left-1'}`} />
+                  <div key={g.id} className={`glass p-6 rounded-[32px] relative overflow-hidden transition-all duration-300 ${g.activo ? 'border-brand-500/30 shadow-[0_0_20px_-10px_rgba(229,0,126,0.2)]' : 'opacity-50 grayscale'}`}>
+                    <div className="flex justify-between items-start mb-6">
+                      <h4 className="font-black text-foreground uppercase italic tracking-tighter text-lg">{g.nombre}</h4>
+                      <button onClick={() => toggleGastoFijo(g)} className={`w-12 h-6 rounded-full relative transition-colors ${g.activo ? 'bg-brand-500' : 'bg-white/10'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${g.activo ? 'left-7' : 'left-1'}`} />
                       </button>
                     </div>
-                    <p className="text-3xl font-black text-gray-900">{fmtCOP(g.monto)} <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">/ Mes</span></p>
-                    <div className="mt-4 flex justify-end">
-                      <button onClick={() => eliminarRegistro("gastos_fijos", g.id!, setGastosFijos)} className="text-gray-400 hover:text-rose-500 text-[10px] font-bold uppercase">
-                        Eliminar
+                    <p className="text-3xl font-black text-foreground data-number tracking-tighter">{fmtCOP(g.monto)}</p>
+                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-[3px] mt-1">/ Mes</p>
+                    
+                    <div className="mt-6 pt-4 border-t border-border flex justify-end">
+                      <button onClick={() => eliminarRegistro("gastos_fijos", g.id!, setGastosFijos)} className="text-muted-foreground hover:text-rose-600 dark:text-rose-400 text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-1">
+                        <Trash2 size={12} /> Eliminar
                       </button>
                     </div>
                   </div>
                 ))}
                 {gastosFijos.length === 0 && (
-                  <div className="col-span-full p-10 text-center border-2 border-dashed border-gray-200 rounded-[30px] text-gray-400 font-bold uppercase">
+                  <div className="col-span-full p-16 text-center border-2 border-dashed border-border rounded-[32px] text-muted-foreground font-black text-xs uppercase tracking-widest">
                     No has configurado gastos fijos (Arriendo, Nómina Fija, etc.)
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              PESTAÑA 4: PRÉSTAMOS
+          ========================================================================= */}
+          {activeTab === "prestamos" && (
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h3 className="font-black uppercase tracking-widest text-foreground text-sm">Gestión de Préstamos</h3>
+                {user?.role === "admin" && (
+                  <button onClick={() => setShowModal("prestamo")} className="flex items-center gap-2 bg-brand-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#cc006f] shadow-[0_0_15px_-3px_rgba(229,0,126,0.3)] transition-all active:translate-y-1">
+                    <PlusCircle size={16} /> Registrar Préstamo
+                  </button>
+                )}
+              </div>
+
+              <div className="glass rounded-[32px] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Fecha</th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Beneficiario/Acreedor</th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Tipo</th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground text-right">Monto</th>
+                        <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-muted-foreground text-center">Estado</th>
+                        <th className="px-6 py-4"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {prestamos.length === 0 ? (
+                        <tr><td colSpan={6} className="p-10 text-center text-muted-foreground font-bold text-[10px] uppercase tracking-widest">No hay préstamos registrados</td></tr>
+                      ) : prestamos.map(p => (
+                        <tr key={p.id} className="hover:bg-muted/40 transition-colors">
+                          <td className="px-6 py-4 font-bold text-muted-foreground text-[10px] data-number">{p.fecha}</td>
+                          <td className="px-6 py-4 text-xs font-black text-foreground uppercase tracking-wider">
+                            {p.beneficiario}
+                            {p.descripcion && <span className="block text-[9px] text-muted-foreground font-bold mt-1 normal-case">{p.descripcion}</span>}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${p.tipo === 'Otorgado' ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'}`}>
+                              {p.tipo}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-black text-foreground text-right data-number">{fmtCOP(p.monto)}</td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${p.estado === 'Activo' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'}`}>
+                              {p.estado}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            {user?.role === "admin" && (
+                              <button onClick={() => eliminarRegistro("prestamos", p.id as any, setPrestamos)} className="text-muted-foreground hover:text-rose-500 p-2 bg-muted/40 rounded-xl hover:bg-white/10 transition-colors">
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              PESTAÑA 5: CIERRE MENSUAL
+          ========================================================================= */}
+          {activeTab === "cierre" && (
+            <div className="space-y-6">
+              <div className="glass rounded-[32px] overflow-hidden">
+                <div className="bg-gradient-to-r from-brand-500/20 to-transparent px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border">
+                  <div>
+                    <h3 className="text-foreground font-black uppercase tracking-widest text-sm">Historial de Cierres Inmutables</h3>
+                    <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">Foto congelada al final de cada mes</p>
+                  </div>
+                  <button onClick={cerrarMes} disabled={savingCierre}
+                    className="flex items-center gap-2 px-6 py-3 bg-brand-500 hover:bg-[#cc006f] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-[0_0_15px_-3px_rgba(229,0,126,0.3)] transition-all active:translate-y-1 disabled:opacity-50">
+                    {savingCierre ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={16} />} Cerrar Mes Actual
+                  </button>
+                </div>
+                {cierres.length === 0 ? (
+                  <div className="py-24 text-center">
+                    <p className="text-muted-foreground font-black uppercase italic tracking-tighter text-lg">Aún no hay cierres registrados</p>
+                    <p className="text-muted-foreground/60 text-[10px] mt-2 font-bold uppercase tracking-widest">Ejecuta el primer cierre para guardar el histórico.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-muted/40">
+                        <tr>
+                          {["Mes","Ingresos","COGS","Ut. Bruta","Gastos","Ut. Neta","Efectivo","Banco","Cartera"].map(h => (
+                            <th key={h} className="px-5 py-4 text-[9px] font-black uppercase text-muted-foreground tracking-widest">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {cierres.map((c: any, i: number) => {
+                          const prev = cierres[i + 1];
+                          const tend = prev ? (c.utilidad_neta >= prev.utilidad_neta ? "↑" : "↓") : null;
+                          return (
+                            <tr key={c.id} className="hover:bg-muted/40 transition-colors">
+                              <td className="px-5 py-5 font-black text-foreground uppercase tracking-widest text-[10px]">{MESES[c.mes - 1]} {c.anio}</td>
+                              <td className="px-5 py-5 font-bold text-emerald-600 dark:text-emerald-400 text-xs data-number">{fmtCOP((c.ingresos_contado||0)+(c.ingresos_credito||0))}</td>
+                              <td className="px-5 py-5 font-bold text-rose-600 dark:text-rose-400 text-xs data-number">{fmtCOP(c.cogs||0)}</td>
+                              <td className="px-5 py-5 font-bold text-foreground text-xs data-number">{fmtCOP(c.utilidad_bruta||0)}</td>
+                              <td className="px-5 py-5 font-bold text-orange-600 dark:text-orange-400 text-xs data-number">{fmtCOP((c.gastos_variables||0)+(c.gastos_fijos||0))}</td>
+                              <td className="px-5 py-5">
+                                <span className={`font-black text-sm data-number ${(c.utilidad_neta||0)>=0?"text-brand-600 dark:text-brand-400 glow-brand":"text-rose-600 dark:text-rose-400"}`}>
+                                  {fmtCOP(c.utilidad_neta||0)} {tend && <span className={tend==="↑"?"text-emerald-600 dark:text-emerald-400 ml-1":"text-rose-600 dark:text-rose-400 ml-1"}>{tend}</span>}
+                                </span>
+                              </td>
+                              <td className="px-5 py-5 font-bold text-muted-foreground text-xs data-number">{fmtCOP(c.saldo_efectivo||0)}</td>
+                              <td className="px-5 py-5 font-bold text-blue-600 dark:text-blue-400 text-xs data-number">{fmtCOP(c.saldo_banco||0)}</td>
+                              <td className="px-5 py-5 font-bold text-amber-600 dark:text-amber-400 text-xs data-number">{fmtCOP(c.cartera_pendiente||0)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -598,235 +849,126 @@ export default function FinanzasView() {
         </>
       )}
 
-      {/* =========================================================================
-          PESTAÑA 4: PRÉSTAMOS
-      ========================================================================= */}
-      {!loading && activeTab === "prestamos" && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-gray-800">Control de Préstamos</h3>
-            {user?.role === "admin" && (
-              <button onClick={() => setShowModal("prestamo")} className="flex items-center gap-2 bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-brand-700 shadow-md transition-transform active:scale-95">
-                <PlusCircle size={16} /> Nuevo Préstamo
-              </button>
-            )}
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Fecha</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Beneficiario/Acreedor</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Descripción</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400">Tipo</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-right">Monto</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase text-gray-400 text-center">Estado</th>
-                    <th className="px-5 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {prestamos.length === 0 ? (
-                    <tr><td colSpan={7} className="p-8 text-center text-gray-400 font-bold text-xs uppercase">No hay préstamos registrados</td></tr>
-                  ) : prestamos.map(p => (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-5 py-3 font-bold text-gray-500 text-[10px]">{p.fecha}</td>
-                      <td className="px-5 py-3 text-xs font-bold text-gray-800 uppercase">{p.beneficiario}</td>
-                      <td className="px-5 py-3 text-xs text-gray-500">{p.descripcion || '-'}</td>
-                      <td className="px-5 py-3">
-                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${p.tipo === 'Otorgado' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {p.tipo}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 font-black text-gray-800 text-right">{fmtCOP(p.monto)}</td>
-                      <td className="px-5 py-3 text-center">
-                        <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${p.estado === 'Activo' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {p.estado}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        {user?.role === "admin" && (
-                          <button onClick={() => eliminarRegistro("prestamos", p.id as any, setPrestamos)} className="text-gray-300 hover:text-rose-500">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modales ───────────────────────────────────────────────────────────── */}
+      {/* -- Modales Premium ------------------------------------------------------------ */}
       
-      {/* Modal: Gasto Variable */}
-      {showModal === "gasto" && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-8 space-y-6">
-            <div className="flex justify-between items-center border-b pb-4">
-              <h2 className="text-xl font-black uppercase italic text-gray-800">Registrar Gasto Variable</h2>
-              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+      {showModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-[40px] w-full max-w-lg p-8 md:p-10 space-y-8 animate-in zoom-in-95 duration-300">
+            <div className="flex justify-between items-center border-b border-border pb-6">
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter text-foreground">
+                {showModal === "gasto" ? "Gasto Variable" : 
+                 showModal === "movimiento" ? "Movimiento de Caja" : 
+                 showModal === "fijo" ? "Gasto Fijo" : "Préstamo"}
+              </h2>
+              <button onClick={() => setShowModal(null)} className="text-muted-foreground hover:text-white bg-muted/40 hover:bg-white/10 p-2 rounded-full transition-colors"><X size={20} /></button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Fecha</label>
-                <input type="date" value={formGasto.fecha} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Categoría</label>
-                <select value={formGasto.categoria} onChange={e => setFormGasto({...formGasto, categoria: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
-                  {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="text-[9px] font-black text-gray-400 uppercase">Descripción</label>
-                <input type="text" value={formGasto.descripcion} onChange={e => setFormGasto({...formGasto, descripcion: e.target.value})} placeholder="Ej: Compra bolsas" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Monto</label>
-                <input type="number" value={formGasto.monto || ""} onChange={e => setFormGasto({...formGasto, monto: Number(e.target.value)})} className="w-full p-3 bg-gray-50 rounded-xl font-black text-rose-600 border border-gray-100" />
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Sale de</label>
-                <div className="flex gap-2 mt-1">
-                  {([{val: 'Efectivo', label: '💵 Efectivo'}, {val: 'Transferencia', label: '🏦 Banco'}] as const).map(opt => (
-                    <button key={opt.val} type="button" onClick={() => setFormGasto({...formGasto, metodo_pago: opt.val})}
-                      className={`flex-1 p-3 rounded-xl font-black text-xs uppercase border-2 transition-all ${
-                        (formGasto.metodo_pago === opt.val || (opt.val === 'Transferencia' && formGasto.metodo_pago === 'Tarjeta'))
-                          ? opt.val === 'Transferencia' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                          : 'border-gray-200 bg-gray-50 text-gray-400'
-                      }`}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {showModal === "gasto" && (
+                <>
+                  <div>
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Fecha</label>
+                    <input type="date" value={formGasto.fecha} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} className="w-full mt-2 p-4 bg-muted/40 rounded-2xl font-bold text-xs text-foreground border border-border focus:border-brand-500 outline-none" style={{ colorScheme: 'dark' }} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Categoría</label>
+                    <select value={formGasto.categoria} onChange={e => setFormGasto({...formGasto, categoria: e.target.value})} className="w-full mt-2 p-4 bg-muted/40 rounded-2xl font-bold text-xs text-foreground border border-border focus:border-brand-500 outline-none">
+                      {CATEGORIAS.map(c => <option key={c} className="bg-background text-foreground">{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Descripción</label>
+                    <input type="text" value={formGasto.descripcion} onChange={e => setFormGasto({...formGasto, descripcion: e.target.value})} placeholder="Ej: Compra bolsas" className="w-full mt-2 p-4 bg-muted/40 rounded-2xl font-bold text-xs text-foreground border border-border focus:border-brand-500 outline-none placeholder:text-white/20" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Monto</label>
+                    <input type="number" value={formGasto.monto || ""} onChange={e => setFormGasto({...formGasto, monto: Number(e.target.value)})} className="w-full mt-2 p-4 bg-muted/40 rounded-2xl font-black text-rose-600 dark:text-rose-400 border border-border focus:border-brand-500 outline-none data-number text-lg" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Sale de</label>
+                    <div className="flex gap-2 mt-2">
+                      {([{val: 'Efectivo', label: '💵 Físico'}, {val: 'Transferencia', label: '🏦 Banco'}] as const).map(opt => (
+                        <button key={opt.val} type="button" onClick={() => setFormGasto({...formGasto, metodo_pago: opt.val})}
+                          className={`flex-1 p-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
+                            (formGasto.metodo_pago === opt.val || (opt.val === 'Transferencia' && formGasto.metodo_pago === 'Tarjeta'))
+                              ? opt.val === 'Transferencia' ? 'border-blue-500/50 bg-blue-500/20 text-blue-600 dark:text-blue-400' : 'border-emerald-500/50 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                              : 'border-border bg-muted/40 text-muted-foreground'
+                          }`}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              {/* OTRAS MODALES SIMPLIFICADAS PARA AHORRAR ESPACIO (SIGUEN LA MISMA LÓGICA ESTÉTICA) */}
+              {showModal === "movimiento" && (
+                <>
+                  <div className="md:col-span-2 flex gap-4">
+                     <select value={formMovimiento.tipo} onChange={e => setFormMovimiento({...formMovimiento, tipo: e.target.value as "Ingreso"|"Egreso"})} className="flex-1 p-4 bg-muted/40 rounded-2xl font-black text-xs text-foreground uppercase tracking-widest border border-border">
+                        <option value="Ingreso" className="bg-background text-foreground">Entrada (+)</option>
+                        <option value="Egreso" className="bg-background text-foreground">Salida (-)</option>
+                     </select>
+                     <input type="number" placeholder="Monto" value={formMovimiento.monto || ""} onChange={e => setFormMovimiento({...formMovimiento, monto: Number(e.target.value)})} className="flex-1 p-4 bg-muted/40 rounded-2xl font-black text-brand-600 dark:text-brand-400 border border-border text-xl data-number text-center outline-none" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <input type="text" value={formMovimiento.concepto} onChange={e => setFormMovimiento({...formMovimiento, concepto: e.target.value})} placeholder="Concepto (Ej: Abono de cliente)" className="w-full p-4 bg-muted/40 rounded-2xl font-bold text-xs text-foreground border border-border outline-none" />
+                  </div>
+                  <div className="md:col-span-2 flex gap-2">
+                     {(["Efectivo", "Banco"] as const).map(c => (
+                        <button key={c} type="button" onClick={() => setFormMovimiento({...formMovimiento, cuenta: c})}
+                          className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
+                            formMovimiento.cuenta === c ? c === 'Banco' ? 'border-blue-500/50 bg-blue-500/20 text-blue-600 dark:text-blue-400' : 'border-emerald-500/50 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'border-border bg-muted/40 text-muted-foreground'
+                          }`}>
+                          {c === 'Banco' ? <Landmark size={14} /> : <Banknote size={14} />} {c}
+                        </button>
+                      ))}
+                  </div>
+                </>
+              )}
+              {showModal === "fijo" && (
+                <>
+                  <div className="md:col-span-2">
+                    <input type="text" value={formFijo.nombre} onChange={e => setFormFijo({...formFijo, nombre: e.target.value})} placeholder="Nombre (Ej: Arriendo, Internet)" className="w-full p-4 bg-muted/40 rounded-2xl font-bold text-sm text-foreground border border-border outline-none" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <input type="number" placeholder="Costo Mensual" value={formFijo.monto || ""} onChange={e => setFormFijo({...formFijo, monto: Number(e.target.value)})} className="w-full p-4 bg-muted/40 rounded-2xl font-black text-foreground border border-border text-2xl data-number text-center outline-none" />
+                  </div>
+                </>
+              )}
+              {showModal === "prestamo" && (
+                <>
+                  <div className="md:col-span-2 flex gap-4">
+                     <select value={formPrestamo.tipo} onChange={e => setFormPrestamo({...formPrestamo, tipo: e.target.value as "Otorgado"|"Recibido"})} className="flex-1 p-4 bg-muted/40 rounded-2xl font-black text-xs text-foreground uppercase tracking-widest border border-border">
+                        <option value="Otorgado" className="bg-background text-foreground">Otorgado (Salió plata)</option>
+                        <option value="Recibido" className="bg-background text-foreground">Recibido (Entró plata)</option>
+                     </select>
+                     <input type="number" placeholder="Monto" value={formPrestamo.monto || ""} onChange={e => setFormPrestamo({...formPrestamo, monto: Number(e.target.value)})} className="flex-1 p-4 bg-muted/40 rounded-2xl font-black text-brand-600 dark:text-brand-400 border border-border text-xl data-number text-center outline-none" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <input type="text" value={formPrestamo.beneficiario} onChange={e => setFormPrestamo({...formPrestamo, beneficiario: e.target.value})} placeholder="Acreedor / Beneficiario" className="w-full p-4 bg-muted/40 rounded-2xl font-bold text-sm text-foreground border border-border outline-none" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <input type="text" value={formPrestamo.descripcion} onChange={e => setFormPrestamo({...formPrestamo, descripcion: e.target.value})} placeholder="Descripción / Motivo (Opcional)" className="w-full p-4 bg-muted/40 rounded-2xl font-bold text-xs text-foreground border border-border outline-none" />
+                  </div>
+                </>
+              )}
             </div>
-            <button onClick={guardarGasto} disabled={saving || !formGasto.descripcion || formGasto.monto <= 0} className="w-full py-4 bg-brand-500 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
-              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Guardar Gasto"}
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* Modal: Movimiento de Caja */}
-      {showModal === "movimiento" && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-8 space-y-6">
-            <div className="flex justify-between items-center border-b pb-4">
-              <h2 className="text-xl font-black uppercase italic text-gray-800">Movimiento de Banco / Caja</h2>
-              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Fecha</label>
-                <input type="date" value={formMovimiento.fecha} onChange={e => setFormMovimiento({...formMovimiento, fecha: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Tipo</label>
-                <select value={formMovimiento.tipo} onChange={e => setFormMovimiento({...formMovimiento, tipo: e.target.value as "Ingreso"|"Egreso"})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
-                  <option value="Ingreso">Entrada (+)</option>
-                  <option value="Egreso">Salida (-)</option>
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="text-[9px] font-black text-gray-400 uppercase">Cuenta Destino</label>
-                <div className="flex gap-2 mt-1">
-                  {(["Efectivo", "Banco"] as const).map(c => (
-                    <button key={c} type="button" onClick={() => setFormMovimiento({...formMovimiento, cuenta: c})}
-                      className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl font-black text-xs uppercase border-2 transition-all ${
-                        formMovimiento.cuenta === c
-                          ? c === 'Banco' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                          : 'border-gray-200 bg-gray-50 text-gray-400'
-                      }`}>
-                      {c === 'Banco' ? <Landmark size={16} /> : <Banknote size={16} />}
-                      {c === 'Banco' ? '🏦 Banco' : '💵 Efectivo'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="col-span-2">
-                <label className="text-[9px] font-black text-gray-400 uppercase">Concepto</label>
-                <input type="text" value={formMovimiento.concepto} onChange={e => setFormMovimiento({...formMovimiento, concepto: e.target.value})} placeholder="Ej: Abono de cliente, Pago proveedor" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[9px] font-black text-gray-400 uppercase">Monto</label>
-                <input type="number" value={formMovimiento.monto || ""} onChange={e => setFormMovimiento({...formMovimiento, monto: Number(e.target.value)})} className="w-full p-4 bg-gray-50 rounded-xl font-black text-2xl text-center text-brand-600 border border-gray-100" />
-              </div>
-            </div>
-            <button onClick={guardarMovimiento} disabled={saving || !formMovimiento.concepto || formMovimiento.monto <= 0} className="w-full py-4 bg-brand-500 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
-              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Registrar Movimiento"}
+            <button 
+              onClick={() => {
+                if (showModal==="gasto") guardarGasto();
+                if (showModal==="movimiento") guardarMovimiento();
+                if (showModal==="fijo") guardarGastoFijo();
+                if (showModal==="prestamo") guardarPrestamo();
+              }} 
+              disabled={saving} 
+              className="w-full py-5 bg-brand-500 text-white rounded-2xl font-black uppercase tracking-widest shadow-[0_0_20px_-5px_rgba(229,0,126,0.5)] transition-all active:translate-y-1 hover:bg-[#cc006f] disabled:opacity-50 mt-4 text-xs">
+              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Registrar"}
             </button>
           </div>
         </div>
       )}
-
-      {/* Modal: Gasto Fijo */}
-      {showModal === "fijo" && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-sm p-8 space-y-6">
-            <div className="flex justify-between items-center border-b pb-4">
-              <h2 className="text-xl font-black uppercase italic text-gray-800">Nuevo Gasto Fijo</h2>
-              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            <div>
-              <label className="text-[9px] font-black text-gray-400 uppercase">Nombre (Ej: Arriendo)</label>
-              <input type="text" value={formFijo.nombre} onChange={e => setFormFijo({...formFijo, nombre: e.target.value})} className="w-full p-3 mt-1 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-            </div>
-            <div>
-              <label className="text-[9px] font-black text-gray-400 uppercase">Costo Mensual ($)</label>
-              <input type="number" value={formFijo.monto || ""} onChange={e => setFormFijo({...formFijo, monto: Number(e.target.value)})} className="w-full p-4 mt-1 bg-gray-50 rounded-xl font-black text-2xl text-center border border-gray-100" />
-            </div>
-            <button onClick={guardarGastoFijo} disabled={saving || !formFijo.nombre || formFijo.monto <= 0} className="w-full py-4 bg-gray-900 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
-              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Crear Gasto Fijo"}
-            </button>
-          </div>
-        </div>
-      )}
-      {/* Modal: Prestamo */}
-      {showModal === "prestamo" && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-8 space-y-6">
-            <div className="flex justify-between items-center border-b pb-4">
-              <h2 className="text-xl font-black uppercase italic text-gray-800">Registrar Préstamo</h2>
-              <button onClick={() => setShowModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Fecha</label>
-                <input type="date" value={formPrestamo.fecha} onChange={e => setFormPrestamo({...formPrestamo, fecha: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-gray-400 uppercase">Tipo</label>
-                <select value={formPrestamo.tipo} onChange={e => setFormPrestamo({...formPrestamo, tipo: e.target.value as "Otorgado"|"Recibido"})} className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100">
-                  <option value="Otorgado">Otorgado (Salió plata)</option>
-                  <option value="Recibido">Recibido (Entró plata)</option>
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="text-[9px] font-black text-gray-400 uppercase">Beneficiario / Acreedor</label>
-                <input type="text" value={formPrestamo.beneficiario} onChange={e => setFormPrestamo({...formPrestamo, beneficiario: e.target.value})} placeholder="A quién se le presta o quién nos presta" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[9px] font-black text-gray-400 uppercase">Descripción (Opcional)</label>
-                <input type="text" value={formPrestamo.descripcion} onChange={e => setFormPrestamo({...formPrestamo, descripcion: e.target.value})} placeholder="Motivo o detalle del préstamo" className="w-full p-3 bg-gray-50 rounded-xl font-bold border border-gray-100" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[9px] font-black text-gray-400 uppercase">Monto</label>
-                <input type="number" value={formPrestamo.monto || ""} onChange={e => setFormPrestamo({...formPrestamo, monto: Number(e.target.value)})} className="w-full p-4 bg-gray-50 rounded-xl font-black text-2xl text-center text-brand-600 border border-gray-100" />
-              </div>
-            </div>
-            <button onClick={guardarPrestamo} disabled={saving || !formPrestamo.beneficiario || formPrestamo.monto <= 0} className="w-full py-4 bg-brand-500 text-white rounded-xl font-black uppercase disabled:bg-gray-200">
-              {saving ? <Loader2 className="animate-spin inline mr-2" size={16} /> : "Registrar Préstamo"}
-            </button>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
