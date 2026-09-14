@@ -1,0 +1,25 @@
+{
+  "short_name": "A la Carrera",
+  "name": "A la Carrera ERP",
+  "description": "Sistema de gestión integral y operaciones de A la Carrera",
+  "icons": [
+    {
+      "src": "/marrano.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 any",
+      "purpose": "any"
+    },
+    {
+      "src": "/marrano.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 any",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#090A0F",
+  "theme_color": "#E5007E",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}
