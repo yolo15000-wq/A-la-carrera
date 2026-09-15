@@ -4,20 +4,26 @@
   "description": "Sistema de gestión integral y operaciones de A la Carrera",
   "icons": [
     {
-      "src": "/marrano.svg",
-      "type": "image/svg+xml",
-      "sizes": "192x192 512x512 any",
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/marrano.svg",
-      "type": "image/svg+xml",
-      "sizes": "192x192 512x512 any",
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
       "purpose": "maskable"
     }
   ],
   "start_url": "/",
-  "background_color": "#090A0F",
+  "background_color": "#000000",
   "theme_color": "#E5007E",
   "display": "standalone",
   "orientation": "portrait",
