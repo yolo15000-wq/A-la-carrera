@@ -62,7 +62,10 @@ export const App = () => {
 
 const MainContent = () => {
   const { user, logout, isLoading } = useAuth();
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved !== null ? saved === 'dark' : false;
+  });
   const [selected, setSelected] = useState("Inicio");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -74,6 +77,7 @@ const MainContent = () => {
 
   React.useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
   if (isLoading) {
